@@ -1,0 +1,81 @@
+use super::{OptionGuide, Page};
+
+pub(super) const GUIDES: &[OptionGuide] = &[
+    OptionGuide {
+        id: "updates-pause-test", page: Page::Updates, title: "Suspendre Windows Update pendant un test",
+        steps: "Dans Windows Update, déroule Suspendre les mises à jour et choisis la durée du test. L’option « 5 semaines » dépend de la version et des stratégies du PC. Note la date de reprise affichée.",
+        undo: "Clique sur Reprendre les mises à jour et lance une recherche. Windows reprend également à la date prévue.",
+        note: "Une pause aide à comparer deux configurations, mais retarde aussi les correctifs de sécurité. Une fois la durée maximale atteinte, Windows peut exiger une mise à jour avant une nouvelle pause.",
+        target: "ms-settings:windowsupdate", source: "https://support.microsoft.com/en-au/windows/deployment/updates-lifecycle/windows-update-faq",
+    },
+    OptionGuide {
+        id: "delivery-peer-sharing", page: Page::Updates, title: "Arrêter le partage de mises à jour entre PC",
+        steps: "Dans Optimisation de la distribution, note le choix actuel puis désactive les téléchargements à partir d’autres appareils. Sur un réseau à plusieurs PC, l’option réseau local conserve uniquement le partage entre ces appareils.",
+        undo: "Réactive l’interrupteur puis rétablis le périmètre de partage initial.",
+        note: "Windows Update et le Store continuent de télécharger depuis Microsoft. L’arrêt du partage peut augmenter le trafic Internet total si plusieurs PC téléchargent la même mise à jour.",
+        target: "ms-settings:delivery-optimization", source: "https://support.microsoft.com/en-us/windows/privacy/windows-update-delivery-optimization-and-privacy",
+    },
+    OptionGuide {
+        id: "privacy-general", page: Page::Privacy, title: "Choisir ce que Windows utilise pour ses suggestions",
+        steps: "Ouvre Confidentialité et sécurité puis Général ou Recommandations et offres. Note les états, puis désactive, si tu le souhaites, l’identifiant publicitaire, l’accès à la liste des langues, le suivi des lancements et les suggestions disponibles.",
+        undo: "Réactive les catégories voulues. Réactiver l’identifiant publicitaire en crée un nouveau.",
+        note: "Ces choix concernent la personnalisation. Les noms et la liste des options varient selon la version de Windows.",
+        target: "ms-settings:privacy", source: "https://support.microsoft.com/en-us/windows/privacy/general-privacy-settings-in-windows",
+    },
+    OptionGuide {
+        id: "privacy-diagnostics", page: Page::Privacy, title: "Limiter les diagnostics facultatifs et les demandes de commentaires",
+        steps: "Ouvre Diagnostics et commentaires. Note les états puis désactive les données facultatives et, si présentes, l’amélioration de la saisie et les expériences personnalisées. Pour arrêter les sollicitations, choisis Jamais si cette fréquence est proposée.",
+        undo: "Rétablis les états et la fréquence précédents sur cette page.",
+        note: "Sur Windows Famille et Pro, des données de diagnostic requises demeurent. Effacer des données déjà collectées est une action distincte.",
+        target: "ms-settings:privacy-feedback", source: "https://support.microsoft.com/en-gb/windows/privacy/diagnostics-feedback-and-privacy-in-windows",
+    },
+    OptionGuide {
+        id: "privacy-activity-history", page: Page::Privacy, title: "Arrêter l’enregistrement de l’historique des activités",
+        steps: "Ouvre Historique des activités. Désactive la conservation de l’historique sur cet appareil si la case est présente. Sur une ancienne version qui propose aussi l’envoi à Microsoft, règle-le séparément.",
+        undo: "Réactive la conservation pour les activités futures. Un historique effacé manuellement ne peut pas être restauré par Ferrite11.",
+        note: "Microsoft a retiré l’option d’envoi au cloud dans les versions mises à jour. L’interrupteur local et le bouton d’effacement ont des effets différents.",
+        target: "ms-settings:privacy-activityhistory", source: "https://support.microsoft.com/en-au/windows/privacy/windows-activity-history-and-your-privacy",
+    },
+    OptionGuide {
+        id: "privacy-search-permissions", page: Page::Privacy, title: "Limiter l’historique et le contenu cloud dans la recherche",
+        steps: "Dans les autorisations de recherche, relève les valeurs puis désactive les résultats cloud des comptes voulus et l’historique de recherche sur cet appareil si ces options apparaissent. Ajuste séparément la mise en avant de la recherche.",
+        undo: "Rétablis les options de compte et d’historique. L’effacement de l’historique local éventuel est définitif.",
+        note: "SafeSearch filtre le contenu adulte des résultats web. Choisis son niveau selon le public qui utilise le PC.",
+        target: "ms-settings:search-permissions", source: "https://support.microsoft.com/en-us/windows/privacy/windows-search-and-privacy",
+    },
+    OptionGuide {
+        id: "game-bar-shortcuts", page: Page::Jeux, title: "Limiter l’ouverture de la Xbox Game Bar",
+        steps: "Dans Jeux > Game Bar, coupe l’ouverture par le bouton de la manette si proposée. Si ta version présente un interrupteur général, tu peux le désactiver. Pour arrêter aussi l’enregistrement de clips, utilise le réglage Captures de cette rubrique.",
+        undo: "Réactive l’option de la manette ou l’interrupteur général que tu as modifié. Si tu as changé les captures, restaure-les séparément.",
+        note: "Désactiver le raccourci de la manette peut laisser Win + G disponible. Le Mode Jeu se règle séparément. Compare la même scène de jeu pour évaluer d’éventuelles saccades.",
+        target: "ms-settings:gaming-gamebar", source: "https://support.microsoft.com/en-us/accessibility/windows/keyboard-shortcuts-in-windows",
+    },
+    OptionGuide {
+        id: "accounts-after-update", page: Page::Privacy, title: "Choisir quand Windows termine la configuration après une mise à jour",
+        steps: "Dans Comptes > Options de connexion, repère les paramètres supplémentaires. Désactive l’utilisation de tes informations de connexion pour terminer automatiquement la configuration après une mise à jour.",
+        undo: "Réactive la même option si tu souhaites retrouver ce comportement.",
+        note: "La configuration pourra se terminer à ta prochaine connexion. Une stratégie de ton organisation peut verrouiller ce choix.",
+        target: "ms-settings:signinoptions", source: "https://support.microsoft.com/en-us/accessibility/windows/use-a-screen-reader-to-navigate-sign-in-options-in-windows",
+    },
+    OptionGuide {
+        id: "accounts-sync-preferences", page: Page::Privacy, title: "Choisir les préférences mémorisées par Sauvegarde Windows",
+        steps: "Dans Comptes > Sauvegarde Windows, ouvre « Mémoriser mes préférences ». Relève les cases sélectionnées puis coupe l’ensemble ou seulement les éléments voulus, par exemple la personnalisation et les paramètres de langue.",
+        undo: "Sur la même page, réactive les catégories à retrouver sur les autres PC liés au compte Microsoft.",
+        note: "Les fichiers synchronisés par OneDrive ont leurs propres réglages. Cette modification ne les efface pas.",
+        target: "ms-settings:sync", source: "https://support.microsoft.com/en-us/windows/experience/backup-recovery/back-up-and-restore-with-windows-backup",
+    },
+    OptionGuide {
+        id: "offline-map-updates", page: Page::Updates, title: "Vérifier la présence des anciennes cartes hors connexion",
+        steps: "Dans Paramètres, cherche « cartes hors connexion ». Si ton ancienne installation propose encore la mise à jour automatique des cartes, relève la case et décoche-la. Si la rubrique est absente, aucune intervention n’est nécessaire.",
+        undo: "Sur les installations qui proposent encore l’option, rétablis la case précédente.",
+        note: "Microsoft a retiré l’application Cartes du Store en juillet 2025. Les versions récentes de Windows peuvent avoir supprimé cette rubrique.",
+        target: "ms-settings:appsfeatures", source: "https://learn.microsoft.com/en-us/windows/whats-new/deprecated-features-resources",
+    },
+    OptionGuide {
+        id: "windows-activation-fullscreen", page: Page::Systeme, title: "Vérifier l’activation et le mode plein écran d’un jeu",
+        steps: "Dans Système > Activation, lis l’état de la licence. Pour choisir le plein écran, utilise les options vidéo du jeu. S’il propose plusieurs modes, compare-les à résolution et fréquence identiques.",
+        undo: "Consulter l’état de la licence ne change rien. Rétablis le mode d’affichage précédent dans le jeu.",
+        note: "L’activation vérifie la licence Windows. Le plein écran exclusif dépend du jeu et de son mode de présentation. Ferrite11 ne conditionne pas les réglages d’affichage à l’activation.",
+        target: "ms-settings:activation", source: "https://devblogs.microsoft.com/directx/demystifying-full-screen-optimizations/",
+    },
+];
