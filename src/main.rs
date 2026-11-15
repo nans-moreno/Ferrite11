@@ -16,6 +16,8 @@ mod shell;
 #[cfg(windows)]
 mod language;
 #[cfg(windows)]
+mod updates;
+#[cfg(windows)]
 mod user_path;
 #[cfg(windows)]
 mod startup;
@@ -783,6 +785,7 @@ $w = Get-CimInstance Win32_OperatingSystem
         display_modes: Option<Vec<String>>,
         search: String,
         apps: crate::apps::Apps,
+        updates: crate::updates::Updates,
         startup_preview: Result<crate::startup::Saved, String>,
         page: Page,
         selected: BTreeSet<String>,
@@ -806,7 +809,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             };
             let (tx, rx) = mpsc::channel();
             std::thread::spawn(move || { let _ = tx.send(get_machine()); });
-            Self { display_modes: None, search: String::new(), apps: crate::apps::Apps::default(), startup_preview: crate::startup::snapshot(),
+            Self { display_modes: None, search: String::new(), apps: crate::apps::Apps::default(), updates: crate::updates::Updates::default(), startup_preview: crate::startup::snapshot(),
                 page: Page::Accueil, selected: BTreeSet::new(), simulation: false,
                 confirmation: false, confirm_restore_all: false, store, storage_error: error,
                 message: crate::language::text("Choisis les réglages à appliquer, puis valide la sélection.").into(),
@@ -1202,6 +1205,7 @@ $w = Get-CimInstance Win32_OperatingSystem
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(crate::language::text(WINDOW_TITLE).into()));
                     }
                 }
+                self.updates.ui(ui, !self.apps.busy());
             });
         }
         fn bottom_actions(&mut self, ui: &mut egui::Ui) {
@@ -1289,6 +1293,7 @@ $w = Get-CimInstance Win32_OperatingSystem
                     ui.colored_label(Color32::RED, crate::local_format!("Mode lecture seule : {e}. Corrige le fichier de sauvegarde avant toute modification.", "Read-only mode: {e}. Fix the backup file before making changes."));
                 }
             });
+            if self.updates.busy() { ui.disable(); }
             let actions_height = ui.available_height() * 0.45;
             egui::Panel::bottom("actions").resizable(false).show(ui, |ui| {
                 egui::ScrollArea::vertical().id_salt("action-scroll")

@@ -555,6 +555,7 @@ pub struct Apps {
     handlers: std::collections::BTreeMap<(&'static str, &'static str), (String, Option<String>)>,
 }
 impl Apps {
+    pub fn busy(&self) -> bool { self.pending.is_some() }
     pub fn language_changed(&mut self) { self.message.clear(); self.handlers.clear(); }
     pub fn poll(&mut self, ctx: &egui::Context) {
         let Some(rx) = &self.pending else {

@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Ferrite11 Setup")]
 [assembly: AssemblyProduct("Ferrite11 Universal")]
-[assembly: AssemblyVersion("0.9.0.0")]
+[assembly: AssemblyVersion("0.10.0.0")]
 
 internal static class Setup
 {
@@ -53,7 +53,7 @@ internal static class Setup
             Button cancel = new Button { Left = 434, Top = 123, Width = 100, Height = 27, DialogResult = DialogResult.Cancel };
             languages.SelectedIndexChanged += delegate {
                 bool en = languages.SelectedIndex == 1;
-                form.Text = en ? "Install Ferrite11 0.9.0" : "Installer Ferrite11 0.9.0";
+                form.Text = en ? "Install Ferrite11 0.10.0" : "Installer Ferrite11 0.10.0";
                 location.Text = en ? "Installation folder" : "Dossier d’installation";
                 browse.Text = en ? "Browse…" : "Parcourir…";
                 install.Text = en ? "Install" : "Installer";
@@ -87,10 +87,18 @@ internal static class Setup
     [STAThread]
     static int Main(string[] args)
     {
-        bool quiet = args.Length == 2 && args[0] == "/install";
+        bool update = args.Length == 2 && args[0] == "/update-file";
+        bool quiet = update || (args.Length == 2 && args[0] == "/install");
         bool english = false;
         try {
             string folder = quiet ? Path.GetFullPath(args[1]) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Ferrite11");
+            string executable = "Ferrite11.exe";
+            if (update) {
+                string target = Path.GetFullPath(args[1]);
+                if (!String.Equals(Path.GetExtension(target), ".exe", StringComparison.OrdinalIgnoreCase) || !File.Exists(target)) return 2;
+                folder = Path.GetDirectoryName(target);
+                executable = Path.GetFileName(target);
+            }
             if (!quiet) {
                 Application.EnableVisualStyles();
                 english = ReadPreference("language.txt") == "en";
@@ -100,8 +108,8 @@ internal static class Setup
             }
             Directory.CreateDirectory(folder);
             foreach (string name in new[] { "LICENSE.txt", "Ferrite11.exe" }) {
-                string destination = Path.Combine(folder, name);
-                if (name == "LICENSE.txt" && File.Exists(destination) && !File.Exists(Path.Combine(folder, "Ferrite11.exe")))
+                string destination = Path.Combine(folder, name == "Ferrite11.exe" ? executable : name);
+                if (name == "LICENSE.txt" && File.Exists(destination) && !File.Exists(Path.Combine(folder, executable)))
                     destination = Path.Combine(folder, "Ferrite11-LICENSE.txt");
                 string temp = Path.Combine(folder, Guid.NewGuid().ToString() + ".tmp");
                 try {

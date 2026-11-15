@@ -557,6 +557,14 @@ pub(super) fn lookup(source: &str) -> &str {
         "GlobalTimerResolutionRequests et SetTimerResolution.exe" => "GlobalTimerResolutionRequests and SetTimerResolution.exe",
         "Stockage" => "Storage",
         "Aucun" => "None",
+        "Mettre à jour" => "Update",
+        "Installer la dernière version et redémarrer Ferrite11." => "Install the latest version and restart Ferrite11.",
+        "Ferrite11 est à jour" => "Ferrite11 is up to date",
+        "Téléchargement de la version" => "Downloading version",
+        "Redémarrage de Ferrite11…" => "Restarting Ferrite11…",
+        "Mise à jour impossible." => "Update failed.",
+        "Recherche d’une mise à jour…" => "Checking for updates…",
+        "Le service de mise à jour s’est arrêté." => "The update helper stopped.",
         other => other,
     }
 }
