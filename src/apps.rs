@@ -34,6 +34,58 @@ const TOOLS: &[Tool] = &[
         files: &["yazi.exe", "ya.exe"],
     },
     Tool {
+        id: "kwil",
+        name: "Kwil (bêta)",
+        task: "Lire et modifier du texte, y compris les gros journaux",
+        original: "Bloc-notes",
+        release: "rennerdo30/kwil/v0.1.0-beta.8",
+        asset: "kwil-0.1.0-beta.8-windows-x64.zip",
+        hash: "c8cb06aa3332d70c51967c2a3648452ecd0823e03bdd6502ae924240c9b4f510",
+        files: &[
+            "kwil.exe",
+            "kwil.com",
+            "LICENSE.txt",
+            "THIRD-PARTY-NOTICES.txt",
+        ],
+    },
+    Tool {
+        id: "pdfcraft",
+        name: "PdfCraft",
+        task: "Lire et annoter les documents PDF",
+        original: "Lecteur PDF de Microsoft Edge",
+        release: "storytold/pdfcraft/v0.21.1",
+        asset: "pdfcraft-0.21.1-windows-x64-portable.zip",
+        hash: "dcbcc2ddc019d85cca90a8242d5e4dc380f1ff6bfb6b951a89152d1dbae14cb4",
+        files: &[
+            "pdfcraft.exe",
+            "LICENSE-APACHE",
+            "LICENSE-document.txt",
+            "LICENSE-MIT",
+            "NOTICE",
+            "OFL-biz-ud-mincho.txt",
+            "OFL-biz-ud-pgothic.txt",
+            "OFL-lxgw-wenkai-lite.txt",
+            "OFL-nanum-gothic.txt",
+            "OFL-noto-sans-arabic.txt",
+            "OFL-noto-sans-cjk-sc.txt",
+            "OFL-noto-sans-devanagari.txt",
+            "OFL-noto-sans-georgian.txt",
+            "OFL-noto-sans-hebrew.txt",
+            "OFL-noto-sans-symbols-2.txt",
+            "OFL-noto-sans-symbols.txt",
+            "OFL-noto-sans-thai.txt",
+            "OFL-shippori-mincho.txt",
+            "pdfcraft-cli.exe",
+            "portable.txt",
+            "README.md",
+            "models/ATTRIBUTION.txt",
+            "models/text-detection.onnx",
+            "models/text-detection.onnx.LICENCE.txt",
+            "models/text-recognition.onnx",
+            "models/text-recognition.onnx.LICENCE.txt",
+        ],
+    },
+    Tool {
         id: "micro",
         name: "Micro",
         task: "Éditer du texte",
@@ -158,6 +210,18 @@ if ([IO.File]::Exists($path)) {
 fn managed(root: &Path, tool: &Tool) -> bool {
     fs::read_to_string(root.join(tool.id).join(MARKER)).is_ok_and(|s| s == tool.id)
 }
+// Only remove empty directories explicitly listed in the pinned asset manifest.
+fn remove_empty_asset_dirs(folder: &Path, tool: &Tool) {
+    for name in tool.files {
+        if let Some(parent) = Path::new(name)
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            let _ = fs::remove_dir(folder.join(parent));
+        }
+    }
+}
+
 fn new_stage(root: &Path, tool: &Tool) -> Result<PathBuf> {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -188,6 +252,7 @@ fn install(root: &Path, tool: &Tool, fetch: impl FnOnce(&Tool, &Path) -> Result<
         for name in tool.files.iter().copied().chain([MARKER, "download.tmp"]) {
             let _ = fs::remove_file(stage.join(name));
         }
+        remove_empty_asset_dirs(&stage, tool);
         let _ = fs::remove_dir(stage);
     }
     result
@@ -199,6 +264,20 @@ fn rollback(root: &Path, tool: &Tool) -> Result<()> {
     }
     // Acquire delete access to every file before touching the first one.
     // Keep the receipt until all owned binaries have been removed; retries are idempotent.
+    for name in tool.files {
+        if let Some(parent) = Path::new(name)
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            match fs::symlink_metadata(folder.join(parent)) {
+                Ok(meta) if meta.file_attributes() & 0x400 != 0 => {
+                    return Err("Sous-dossier redirigé.".into());
+                }
+                Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.to_string()),
+                _ => (),
+            }
+        }
+    }
     let mut held = Vec::new();
     for name in tool.files.iter().copied().chain([MARKER]) {
         let handle = fs::OpenOptions::new()
@@ -220,6 +299,7 @@ fn rollback(root: &Path, tool: &Tool) -> Result<()> {
     }
     fs::remove_file(folder.join(MARKER)).map_err(|e| e.to_string())?;
     drop(held);
+    remove_empty_asset_dirs(&folder, tool);
     match fs::remove_dir(folder) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == io::ErrorKind::DirectoryNotEmpty => Ok(()),
@@ -344,7 +424,7 @@ pub struct Apps {
     pending: Option<Receiver<Result<String>>>,
     confirm: Option<(&'static str, bool)>,
     message: String,
-    handlers: std::collections::BTreeMap<String, (String, Option<String>)>,
+    handlers: std::collections::BTreeMap<(&'static str, &'static str), (String, Option<String>)>,
 }
 impl Apps {
     pub fn poll(&mut self, ctx: &egui::Context) {
@@ -388,15 +468,16 @@ impl Apps {
         for tool in TOOLS {
             let active = managed(&root, tool);
             let formats = crate::associations::extensions(tool.id);
-            if formats.is_empty() && !active {
+            if (formats.is_empty() || tool.id == "micro") && !active {
                 continue;
             }
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.heading(tool.name);
+                if tool.id == "micro" { ui.label("Ancienne installation de Micro (Go). Tu peux rétablir ton choix dans Windows ou choisir Kwil pour le texte."); }
                 if !formats.is_empty() { ui.label(format!("Usage : {} · Alternative à {}",tool.task,tool.original)); }
                 if formats.is_empty() { ui.label("Ancienne installation par raccourci. Tu peux la retirer."); }
                 for &ext in formats {
-                    let (name,previous) = self.handlers.entry(ext.to_owned()).or_insert_with(|| (crate::associations::handler(ext),crate::associations::previous(tool.id,ext)));
+                    let (name,previous) = self.handlers.entry((tool.id,ext)).or_insert_with(|| (crate::associations::handler(ext),crate::associations::previous(tool.id,ext)));
                     ui.label(format!("{ext} · Application actuelle : {name}"));
                     if let Some(old) = previous { ui.small(format!("Application précédente : {old}")); }
                 }
@@ -535,6 +616,8 @@ mod tests {
         for tool in TOOLS {
             install(&root, tool, |tool, stage| {
                 for name in tool.files {
+                    fs::create_dir_all(stage.join(name).parent().unwrap())
+                        .map_err(|e| e.to_string())?;
                     fs::copy(fixtures.join(tool.id).join(name), stage.join(name))
                         .map_err(|e| e.to_string())?;
                 }

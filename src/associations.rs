@@ -4,7 +4,8 @@ use winreg::{HKCU, RegKey, enums::KEY_WRITE};
 
 pub fn extensions(id: &str) -> &'static [&'static str] {
     match id {
-        "micro" => &[".txt", ".log", ".md"],
+        "kwil" | "micro" => &[".txt", ".log", ".md"],
+        "pdfcraft" => &[".pdf"],
         "oculante" => &[".png", ".jpg", ".jpeg", ".bmp", ".webp"],
         _ => &[],
     }
@@ -194,6 +195,8 @@ mod tests {
     use super::*;
     #[test]
     fn only_file_handlers_can_be_registered() {
+        assert_eq!(extensions("pdfcraft"), &[".pdf"]);
+        assert_eq!(extensions("kwil"), extensions("micro"));
         assert!(extensions("micro").contains(&".txt"));
         assert!(extensions("oculante").contains(&".jpg"));
         for tool in ["yazi", "bottom", "fd", "rg"] {
