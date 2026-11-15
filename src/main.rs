@@ -12,6 +12,8 @@ mod associations;
 #[cfg(windows)]
 mod display_modes;
 #[cfg(windows)]
+mod shell;
+#[cfg(windows)]
 mod user_path;
 #[cfg(windows)]
 mod startup;
@@ -484,9 +486,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             _ => false,
         }
     }
-    fn open_target(target: &str) -> Result<(), String> {
-        Command::new("explorer.exe").arg(target).spawn().map(|_| ()).map_err(|e| e.to_string())
-    }
+    use crate::shell::open_target;
 
     struct OptionGuide {
         id: &'static str, page: Page, title: &'static str, steps: &'static str,

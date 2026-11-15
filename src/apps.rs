@@ -348,13 +348,12 @@ fn transact(tool: &Tool, remove: bool) -> Result<String> {
     }
     crate::associations::register(tool.id, tool.name, &exe).map_err(|e| e.to_string())?;
     remove_old_shortcut(tool)?;
-    Command::new(windows().join("explorer.exe"))
-        .arg(format!(
-            "ms-settings:defaultapps?registeredAppUser=Ferrite11.{}",
-            tool.id
-        ))
-        .spawn()
-        .map_err(|e| e.to_string())?;
+    let page = format!("ms-settings:defaultapps?registeredAppUser=Ferrite11.{}", tool.id);
+    if crate::shell::open_target(&page).is_err() {
+        crate::shell::open_target("ms-settings:defaultapps").map_err(|e| format!(
+            "{} est disponible. Ouvre Paramètres → Applications → Applications par défaut. {e}", tool.name
+        ))?;
+    }
     Ok(format!(
         "Sélectionne {} dans Windows pour les extensions voulues, puis actualise la liste.",
         tool.name
@@ -390,11 +389,7 @@ fn launch(tool: &Tool) -> Result<()> {
             }
             cmd
         }
-        "oculante" => {
-            let mut c = Command::new(windows().join("explorer.exe"));
-            c.arg("ms-photos:");
-            c
-        }
+        "oculante" => return crate::shell::open_target("ms-photos:"),
         "bottom" => Command::new(windows().join(r"System32\Taskmgr.exe")),
         "micro" => Command::new(windows().join(r"System32\notepad.exe")),
         _ => Command::new(windows().join("explorer.exe")),
