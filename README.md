@@ -1,6 +1,8 @@
 # Ferrite11 Universal
 
-Ferrite11 est une application de bureau en français pour Windows 11 x64. Elle analyse les réglages du compte local, explique leur effet et propose des changements réversibles. La version 0.8.0 est publiée sous licence MIT.
+Ferrite11 est une application de bureau en français et en anglais pour Windows 11 x64. Elle analyse les réglages du compte local, explique leur effet et propose des changements réversibles. La version 0.9.0 est publiée sous licence MIT.
+
+L’installateur permet de sélectionner la langue et de saisir ou parcourir le dossier de destination. Dans l’application, **Français** et **English** changent la langue immédiatement. Le choix est mémorisé pour le compte Windows.
 
 ## Utilisation
 
@@ -29,7 +31,7 @@ Prévois un Windows x64 avec la chaîne stable Rust MSVC x64, les outils de comp
 .\build-windows.ps1
 ~~~
 
-Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.8.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
+Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.9.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
 
 Pour travailler uniquement sur le programme Rust, utilise cargo run ou cargo test --release --locked depuis la racine du dépôt. Le code de l’interface et des réglages se trouve dans src. Le fichier installer/Setup.cs contient le programme d’installation pour le compte utilisateur.
 

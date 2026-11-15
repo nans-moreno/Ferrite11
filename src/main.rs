@@ -14,6 +14,8 @@ mod display_modes;
 #[cfg(windows)]
 mod shell;
 #[cfg(windows)]
+mod language;
+#[cfg(windows)]
 mod user_path;
 #[cfg(windows)]
 mod startup;
@@ -51,12 +53,12 @@ $w = Get-CimInstance Win32_OperatingSystem
 "#;
         let output = Command::new("powershell.exe")
             .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .output().map_err(|e| format!("PowerShell : {e}"))?;
+            .output().map_err(|e| crate::local_format!("PowerShell : {e}", "PowerShell: {e}"))?;
         if !output.status.success() {
-            return Err("Impossible d'interroger les caractéristiques matérielles via Windows.".into());
+            return Err(crate::language::text("Impossible d'interroger les caractéristiques matérielles via Windows.").into());
         }
         serde_json::from_slice::<Machine>(&output.stdout)
-            .map_err(|e| format!("Réponse matérielle illisible : {e}"))
+            .map_err(|e| crate::local_format!("Réponse matérielle illisible : {e}", "Could not read hardware information: {e}"))
     }
     fn windows11_supported() -> bool {
         HKLM.open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion")
@@ -72,13 +74,13 @@ $w = Get-CimInstance Win32_OperatingSystem
         const ALL: [Page; 13] = [Page::Accueil, Page::Windows, Page::Updates, Page::Privacy, Page::Jeux, Page::Nvidia, Page::Latence, Page::Demarrage, Page::Systeme, Page::Materiel, Page::Avance, Page::Outils, Page::Journal];
         fn label(self) -> &'static str {
             match self {
-                Self::Accueil => "Tableau de bord", Self::Windows => "Interface Windows",
-                Self::Jeux => "Gaming & GPU", Self::Demarrage => "Applications & démarrage", Self::Systeme => "Système & stockage",
-                Self::Materiel => "CPU, RAM & BIOS", Self::Outils => "Applications de remplacement",
-                Self::Journal => "Journal & sauvegardes",
-                Self::Updates => "Windows Update", Self::Privacy => "Confidentialité & comptes",
-                Self::Avance => "Services & outils avancés", Self::Nvidia => "Pilotes NVIDIA",
-                Self::Latence => "Latence & alimentation",
+                Self::Accueil => crate::language::text("Tableau de bord"), Self::Windows => crate::language::text("Interface Windows"),
+                Self::Jeux => "Gaming & GPU", Self::Demarrage => crate::language::text("Applications & démarrage"), Self::Systeme => crate::language::text("Système & stockage"),
+                Self::Materiel => "CPU, RAM & BIOS", Self::Outils => crate::language::text("Applications de remplacement"),
+                Self::Journal => crate::language::text("Journal & sauvegardes"),
+                Self::Updates => "Windows Update", Self::Privacy => crate::language::text("Confidentialité & comptes"),
+                Self::Avance => crate::language::text("Services & outils avancés"), Self::Nvidia => crate::language::text("Pilotes NVIDIA"),
+                Self::Latence => crate::language::text("Latence & alimentation"),
             }
         }
     }
@@ -107,86 +109,86 @@ $w = Get-CimInstance Win32_OperatingSystem
         vec![
             Tweak {
                 id: "transparency", page: Page::Windows,
-                title: "Désactiver la transparence", risk: "Faible", restart: "Souvent immédiat",
-                description: "Retire les effets transparents des surfaces Windows. N'arrête aucun service ni processus.",
-                effect: "Gain graphique généralement faible ; interface plus sobre.",
+                title: crate::language::text("Désactiver la transparence"), risk: crate::language::text("Faible"), restart: crate::language::text("Souvent immédiat"),
+                description: crate::language::text("Retire les effets transparents des surfaces Windows. N'arrête aucun service ni processus."),
+                effect: crate::language::text("Gain graphique généralement faible ; interface plus sobre."),
                 operation: Operation::Registry(vec![reg(PERSONALIZE, "EnableTransparency", 0)]),
             },
             Tweak {
                 id: "animations", page: Page::Windows,
-                title: "Réduire l'animation des fenêtres", risk: "Faible", restart: "Reconnexion parfois nécessaire",
-                description: "Désactive l'animation d'ouverture/réduction des fenêtres via le paramètre utilisateur MinAnimate.",
-                effect: "Sensation de réactivité ; pas de gain FPS démontré.",
+                title: crate::language::text("Réduire l'animation des fenêtres"), risk: crate::language::text("Faible"), restart: crate::language::text("Reconnexion parfois nécessaire"),
+                description: crate::language::text("Désactive l'animation d'ouverture/réduction des fenêtres via le paramètre utilisateur MinAnimate."),
+                effect: crate::language::text("Sensation de réactivité ; pas de gain FPS démontré."),
                 operation: Operation::Registry(vec![RegChange { path: WINDOWMETRICS, name: "MinAnimate", desired: Desired::Text("0") }]),
             },
             Tweak {
                 id: "widgets", page: Page::Windows,
-                title: "Masquer le bouton Widgets", risk: "Faible", restart: "Reconnexion parfois nécessaire",
-                description: "Masque Widgets dans la barre des tâches, sans désinstaller le composant Windows.",
-                effect: "Allège l'interface ; ne promet pas de libérer la RAM des Widgets.",
+                title: crate::language::text("Masquer le bouton Widgets"), risk: crate::language::text("Faible"), restart: crate::language::text("Reconnexion parfois nécessaire"),
+                description: crate::language::text("Masque Widgets dans la barre des tâches, sans désinstaller le composant Windows."),
+                effect: crate::language::text("Allège l'interface ; ne promet pas de libérer la RAM des Widgets."),
                 operation: Operation::Registry(vec![reg(ADVANCED, "TaskbarDa", 0)]),
             },
             Tweak {
                 id: "capture", page: Page::Jeux,
-                title: "Désactiver les captures Game DVR", risk: "Modéré", restart: "Reconnexion ou redémarrage conseillé",
-                description: "Désactive les options utilisateur de capture Xbox Game Bar (enregistrement et captures via Game DVR). Ne touche pas aux optimisations plein écran.",
-                effect: "Réduit les captures non désirées ; tu perds certaines fonctions d'enregistrement Xbox jusqu'à restauration.",
+                title: crate::language::text("Désactiver les captures Game DVR"), risk: crate::language::text("Modéré"), restart: crate::language::text("Reconnexion ou redémarrage conseillé"),
+                description: crate::language::text("Désactive les options utilisateur de capture Xbox Game Bar (enregistrement et captures via Game DVR). Ne touche pas aux optimisations plein écran."),
+                effect: crate::language::text("Réduit les captures non désirées ; tu perds certaines fonctions d'enregistrement Xbox jusqu'à restauration."),
                 operation: Operation::Registry(vec![reg(GAMEDVR, "AppCaptureEnabled", 0), reg(GAMECONFIG, "GameDVR_Enabled", 0)]),
             },
             Tweak {
                 id: "orphan-startup", page: Page::Demarrage,
-                title: "Retirer les démarrages dont le programme a disparu", risk: "Faible", restart: "À la prochaine connexion",
-                description: "Vérifie les entrées de démarrage de ton compte qui pointent directement vers un programme installé sur le disque système.",
-                effect: "Windows cesse de chercher ces exécutables absents à chaque connexion. La liste est affichée avant validation.",
+                title: crate::language::text("Retirer les démarrages dont le programme a disparu"), risk: crate::language::text("Faible"), restart: crate::language::text("À la prochaine connexion"),
+                description: crate::language::text("Vérifie les entrées de démarrage de ton compte qui pointent directement vers un programme installé sur le disque système."),
+                effect: crate::language::text("Windows cesse de chercher ces exécutables absents à chaque connexion. La liste est affichée avant validation."),
                 operation: Operation::OrphanStartup,
             },
             Tweak {
                 id: "path-duplicates", page: Page::Systeme,
-                title: "Retirer les doublons du PATH utilisateur", risk: "Faible", restart: "À la prochaine connexion Windows",
-                description: "Garde la première occurrence de chaque chemin absolu strictement identique dans la liste des dossiers où Windows cherche les commandes.",
-                effect: "Élimine les recherches répétées dans ces dossiers. Les autres entrées gardent leur ordre.",
+                title: crate::language::text("Retirer les doublons du PATH utilisateur"), risk: crate::language::text("Faible"), restart: crate::language::text("À la prochaine connexion Windows"),
+                description: crate::language::text("Garde la première occurrence de chaque chemin absolu strictement identique dans la liste des dossiers où Windows cherche les commandes."),
+                effect: crate::language::text("Élimine les recherches répétées dans ces dossiers. Les autres entrées gardent leur ordre."),
                 operation: Operation::CleanPath,
             },
             Tweak {
                 id: "balanced", page: Page::Systeme,
-                title: "Revenir au plan d'alimentation Équilibré", risk: "Faible", restart: "Immédiat",
-                description: "Active le plan Équilibré intégré de Windows. Ne force pas de fréquence CPU ni de tension.",
-                effect: "Évite de maintenir inutilement certaines politiques haute performance ; FPS à comparer.",
+                title: crate::language::text("Revenir au plan d'alimentation Équilibré"), risk: crate::language::text("Faible"), restart: crate::language::text("Immédiat"),
+                description: crate::language::text("Active le plan Équilibré intégré de Windows. Ne force pas de fréquence CPU ni de tension."),
+                effect: crate::language::text("Évite de maintenir inutilement certaines politiques haute performance ; FPS à comparer."),
                 operation: Operation::BalancedPower,
             },
             Tweak {
                 id: "file-extensions", page: Page::Windows,
-                title: "Afficher les extensions de fichiers", risk: "Faible", restart: "À la prochaine ouverture de session",
-                description: "Affiche les extensions connues, par exemple .pdf, .zip ou .exe, dans l’Explorateur.",
-                effect: "Le type réel d’un fichier reste visible même si son nom contient plusieurs points.",
+                title: crate::language::text("Afficher les extensions de fichiers"), risk: crate::language::text("Faible"), restart: crate::language::text("À la prochaine ouverture de session"),
+                description: crate::language::text("Affiche les extensions connues, par exemple .pdf, .zip ou .exe, dans l’Explorateur."),
+                effect: crate::language::text("Le type réel d’un fichier reste visible même si son nom contient plusieurs points."),
                 operation: Operation::Registry(vec![reg(ADVANCED, "HideFileExt", 0)]),
             },
             Tweak {
                 id: "gamebar-controller", page: Page::Jeux,
-                title: "Empêcher la manette d’ouvrir la Game Bar", risk: "Faible", restart: "À la prochaine utilisation",
-                description: "Désactive le lancement de la surcouche par le bouton Xbox de la manette. Win + G reste disponible.",
-                effect: "Évite une ouverture accidentelle en jeu. Le Mode Jeu et les captures conservent leurs réglages.",
+                title: crate::language::text("Empêcher la manette d’ouvrir la Game Bar"), risk: crate::language::text("Faible"), restart: crate::language::text("À la prochaine utilisation"),
+                description: crate::language::text("Désactive le lancement de la surcouche par le bouton Xbox de la manette. Win + G reste disponible."),
+                effect: crate::language::text("Évite une ouverture accidentelle en jeu. Le Mode Jeu et les captures conservent leurs réglages."),
                 operation: Operation::Registry(vec![reg(r"Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0)]),
             },
             Tweak {
                 id: "app-launch-tracking", page: Page::Privacy,
-                title: "Couper le suivi des lancements d’applications", risk: "Faible", restart: "À la prochaine connexion si nécessaire",
-                description: "Désactive le suivi des applications que tu ouvres pour personnaliser Démarrer et la recherche.",
-                effect: "Les recommandations fondées sur tes habitudes de lancement deviennent moins personnalisées.",
+                title: crate::language::text("Couper le suivi des lancements d’applications"), risk: crate::language::text("Faible"), restart: crate::language::text("À la prochaine connexion si nécessaire"),
+                description: crate::language::text("Désactive le suivi des applications que tu ouvres pour personnaliser Démarrer et la recherche."),
+                effect: crate::language::text("Les recommandations fondées sur tes habitudes de lancement deviennent moins personnalisées."),
                 operation: Operation::Registry(vec![reg(ADVANCED, "Start_TrackProgs", 0)]),
             },
             Tweak {
                 id: "website-language-list", page: Page::Privacy,
-                title: "Limiter l’accès des sites à la liste de langues Windows", risk: "Faible", restart: "Après réouverture des applications concernées",
-                description: "Désactive l’utilisation de ta liste de langues Windows pour proposer du contenu localisé aux sites.",
-                effect: "Certains sites peuvent demander de choisir une langue. Le navigateur possède aussi ses propres préférences.",
+                title: crate::language::text("Limiter l’accès des sites à la liste de langues Windows"), risk: crate::language::text("Faible"), restart: crate::language::text("Après réouverture des applications concernées"),
+                description: crate::language::text("Désactive l’utilisation de ta liste de langues Windows pour proposer du contenu localisé aux sites."),
+                effect: crate::language::text("Certains sites peuvent demander de choisir une langue. Le navigateur possède aussi ses propres préférences."),
                 operation: Operation::Registry(vec![reg(r"Control Panel\International\User Profile", "HttpAcceptLanguageOptOut", 1)]),
             },
             Tweak {
                 id: "game-mode", page: Page::Jeux,
-                title: "Activer le Mode Jeu de Windows", risk: "Faible", restart: "Au prochain lancement du jeu",
-                description: "Active le réglage Mode Jeu pour cette session utilisateur.",
-                effect: "Windows peut donner la priorité au jeu. L’effet sur la fluidité dépend du jeu et de la charge en arrière-plan.",
+                title: crate::language::text("Activer le Mode Jeu de Windows"), risk: crate::language::text("Faible"), restart: crate::language::text("Au prochain lancement du jeu"),
+                description: crate::language::text("Active le réglage Mode Jeu pour cette session utilisateur."),
+                effect: crate::language::text("Windows peut donner la priorité au jeu. L’effet sur la fluidité dépend du jeu et de la charge en arrière-plan."),
                 operation: Operation::Registry(vec![reg(r"Software\Microsoft\GameBar", "AutoGameModeEnabled", 1)]),
             },
         ]
@@ -212,8 +214,8 @@ $w = Get-CimInstance Win32_OperatingSystem
     fn load_store() -> Result<Store, String> {
         let path = storage_path();
         if !path.exists() { return Ok(Store::default()); }
-        let data = fs::read(&path).map_err(|e| format!("Lecture impossible : {e}"))?;
-        serde_json::from_slice(&data).map_err(|e| format!("Sauvegarde illisible : {e}"))
+        let data = fs::read(&path).map_err(|e| crate::local_format!("Lecture impossible : {e}", "Could not read the file: {e}"))?;
+        serde_json::from_slice(&data).map_err(|e| crate::local_format!("Sauvegarde illisible : {e}", "Could not read the backup: {e}"))
     }
     fn save_store(store: &Store) -> Result<(), String> {
         let path = storage_path();
@@ -221,8 +223,8 @@ $w = Get-CimInstance Win32_OperatingSystem
         let bytes = serde_json::to_vec_pretty(store).map_err(|e| e.to_string())?;
         // Écriture avant toute modification système : le fichier conserve les valeurs initiales.
         let temporary = path.with_extension("json.tmp");
-        fs::write(&temporary, bytes).map_err(|e| format!("Échec d'écriture {} : {e}", temporary.display()))?;
-        fs::rename(&temporary, &path).map_err(|e| format!("Échec de remplacement du fichier de sauvegarde {} : {e}", path.display()))
+        fs::write(&temporary, bytes).map_err(|e| crate::local_format!("Échec d'écriture {} : {e}", "Could not write {}: {e}", temporary.display()))?;
+        fs::rename(&temporary, &path).map_err(|e| crate::local_format!("Échec de remplacement du fichier de sauvegarde {} : {e}", "Could not replace backup file {}: {e}", path.display()))
     }
     fn read_value(c: &RegChange) -> Result<OldValue, String> {
         let k = match HKCU.open_subkey_with_flags(c.path, KEY_QUERY_VALUE) {
@@ -246,12 +248,12 @@ $w = Get-CimInstance Win32_OperatingSystem
                 let mut words: Vec<u16> = raw.bytes.chunks_exact(2)
                     .map(|pair| u16::from_le_bytes([pair[0], pair[1]])).collect();
                 if words.pop() != Some(0) || words.contains(&0) {
-                    return Err("Chaîne de registre inhabituelle, réglage préservé.");
+                    return Err(crate::language::text("Chaîne de registre inhabituelle, réglage préservé."));
                 }
                 String::from_utf16(&words).map(OldValue::Text)
-                    .map_err(|_| "Texte de registre illisible, réglage préservé.")
+                    .map_err(|_| crate::language::text("Texte de registre illisible, réglage préservé."))
             }
-            _ => Err("Format de registre inattendu, réglage préservé."),
+            _ => Err(crate::language::text("Format de registre inattendu, réglage préservé.")),
         }
     }
     fn matches(c: &RegChange, old: &OldValue) -> bool {
@@ -295,14 +297,14 @@ $w = Get-CimInstance Win32_OperatingSystem
     }
     fn power_current() -> Result<String, String> {
         let out = Command::new("powercfg.exe").arg("/getactivescheme").output().map_err(|e| e.to_string())?;
-        if !out.status.success() { return Err("powercfg /getactivescheme a échoué".into()); }
+        if !out.status.success() { return Err(crate::language::text("powercfg /getactivescheme a échoué").into()); }
         parse_guid(&String::from_utf8_lossy(&out.stdout))
-            .ok_or_else(|| "Impossible de lire le GUID du plan d'alimentation".into())
+            .ok_or_else(|| crate::language::text("Impossible de lire le GUID du plan d'alimentation").into())
     }
     fn power_set(arg: &str) -> Result<(), String> {
         let out = Command::new("powercfg.exe").args(["/setactive", arg]).output().map_err(|e| e.to_string())?;
         if out.status.success() { Ok(()) }
-        else { Err(format!("powercfg a échoué (code {:?})", out.status.code())) }
+        else { Err(crate::local_format!("powercfg a échoué (code {:?})", "powercfg failed (code {:?})", out.status.code())) }
     }
     const BALANCED_GUID: &str = "381b4222-f694-41f0-9685-ff5bb260df2e";
     fn snapshot(t: &Tweak) -> Result<Snapshot, String> {
@@ -315,7 +317,7 @@ $w = Get-CimInstance Win32_OperatingSystem
                 Ok(Snapshot::Registry(backup))
             }
             Operation::OrphanStartup => crate::startup::snapshot().map(Snapshot::Startup),
-            Operation::CleanPath => crate::user_path::snapshot()?.map(Snapshot::UserPath).ok_or_else(|| "Aucun PATH utilisateur.".to_owned()),
+            Operation::CleanPath => crate::user_path::snapshot()?.map(Snapshot::UserPath).ok_or_else(|| crate::language::text("Aucun PATH utilisateur.").to_owned()),
             Operation::BalancedPower => Ok(Snapshot::PowerPlan(power_current()?)),
         }
     }
@@ -337,29 +339,29 @@ $w = Get-CimInstance Win32_OperatingSystem
         match &t.operation {
             Operation::Registry(changes) => {
                 let Snapshot::Registry(entries) = backup else {
-                    return Err("Sauvegarde de registre incompatible.".into());
+                    return Err(crate::language::text("Sauvegarde de registre incompatible.").into());
                 };
                 for c in changes {
                     let previous = entries.iter().find(|b| b.path == c.path && b.name == c.name)
-                        .ok_or_else(|| format!("Valeur {} absente de la sauvegarde.", c.name))?;
+                        .ok_or_else(|| crate::local_format!("Valeur {} absente de la sauvegarde.", "Value {} is missing from the backup.", c.name))?;
                     let now = read_value(c)?;
                     if !same_old(&now, &previous.old) {
-                        return Err(format!("{} a changé depuis la sauvegarde. Application interrompue.", c.name));
+                        return Err(crate::local_format!("{} a changé depuis la sauvegarde. Application interrompue.", "{} has changed since the backup. Stopping.", c.name));
                     }
                     if !matches(c, &now) { write_desired(c)?; }
                     if !matches(c, &read_value(c)?) {
-                        return Err(format!("La valeur relue de {} ne correspond pas au réglage demandé.", c.name));
+                        return Err(crate::local_format!("La valeur relue de {} ne correspond pas au réglage demandé.", "The value read back from {} differs from the requested setting.", c.name));
                     }
                 }
                 Ok(())
             }
             Operation::OrphanStartup => match backup {
                 Snapshot::Startup(previous) => previous.apply(),
-                _ => Err("Sauvegarde de démarrage incompatible.".into()),
+                _ => Err(crate::language::text("Sauvegarde de démarrage incompatible.").into()),
             },
             Operation::CleanPath => match backup {
                 Snapshot::UserPath(previous) => previous.update(false),
-                _ => Err("Sauvegarde incompatible.".into()),
+                _ => Err(crate::language::text("Sauvegarde incompatible.").into()),
             },
             Operation::BalancedPower => power_set(BALANCED_GUID),
         }
@@ -380,20 +382,20 @@ $w = Get-CimInstance Win32_OperatingSystem
         match (&t.operation, s) {
             (Operation::Registry(changes), Snapshot::Registry(entries)) => {
                 if entries.len() != changes.len() {
-                    return Err("Sauvegarde incohérente avec les réglages reconnus par Ferrite11.".into());
+                    return Err(crate::language::text("Sauvegarde incohérente avec les réglages reconnus par Ferrite11.").into());
                 }
                 for c in changes {
                     let current = read_value(c)?;
                     let original = entries.iter().find(|b| b.path == c.path && b.name == c.name)
-                        .ok_or_else(|| format!("Valeur {} absente de la sauvegarde", c.name))?;
+                        .ok_or_else(|| crate::local_format!("Valeur {} absente de la sauvegarde", "Value {} is missing from the backup", c.name))?;
                     if !matches!((&c.desired, &original.old),
                         (_, OldValue::Missing) | (Desired::Dword(_), OldValue::Dword(_)) | (Desired::Text(_), OldValue::Text(_))) {
-                        return Err(format!("Le type sauvegardé pour {} est incohérent.", c.name));
+                        return Err(crate::local_format!("Le type sauvegardé pour {} est incohérent.", "The saved type for {} is inconsistent.", c.name));
                     }
                     // Tolère également un état jamais modifié (crash avant écriture) ou
                     // partiellement modifié (crash pendant une opération multi-valeurs).
                     if !matches(c, &current) && !same_old(&current, &original.old) {
-                        return Err(format!("Le réglage {} a changé depuis l'application : restauration bloquée pour éviter d'écraser ton choix.", c.name));
+                        return Err(crate::local_format!("Le réglage {} a changé depuis l'application : restauration bloquée pour éviter d'écraser ton choix.", "Setting {} has changed since it was applied. Restore stopped to preserve your changes.", c.name));
                     }
                 }
                 Ok(())
@@ -402,13 +404,13 @@ $w = Get-CimInstance Win32_OperatingSystem
             (Operation::CleanPath, Snapshot::UserPath(previous)) => previous.check_restore(),
             (Operation::BalancedPower, Snapshot::PowerPlan(original)) => {
                 if parse_guid(original).as_deref() != Some(original.as_str()) {
-                    return Err("Identifiant du plan sauvegardé invalide.".into());
+                    return Err(crate::language::text("Identifiant du plan sauvegardé invalide.").into());
                 }
                 let current = power_current()?;
                 if current.eq_ignore_ascii_case(BALANCED_GUID) || current.eq_ignore_ascii_case(original) { Ok(()) }
-                else { Err("Le plan d'alimentation a été modifié depuis l'application.".into()) }
+                else { Err(crate::language::text("Le plan d'alimentation a été modifié depuis l'application.").into()) }
             }
-            _ => Err("Format de sauvegarde incompatible".into()),
+            _ => Err(crate::language::text("Format de sauvegarde incompatible").into()),
         }
     }
     #[cfg(test)]
@@ -452,6 +454,53 @@ $w = Get-CimInstance Win32_OperatingSystem
             assert!(app.simulation && app.confirmation && app.store.backups.is_empty() && app.store.log.is_empty());
             app.run_apply();
             assert!(app.store.backups.is_empty() && app.store.log.is_empty());
+        }
+
+        #[test]
+        fn switch_language_from_the_header_and_remember_it() {
+            // Isolate the real preferences and process-wide language from other parallel tests.
+            const CHILD: &str = "FERRITE11_LANGUAGE_TEST_CHILD";
+            if std::env::var_os(CHILD).is_none() {
+                let profile = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target")
+                    .join(format!("language-test-{}", std::process::id()));
+                std::fs::create_dir_all(&profile).unwrap();
+                let result = Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "app::setting_tests::switch_language_from_the_header_and_remember_it"])
+                    .env(CHILD, "1").env("LOCALAPPDATA", &profile).output().unwrap();
+                std::fs::remove_file(profile.join("Ferrite11/language.txt")).unwrap();
+                std::fs::remove_dir(profile.join("Ferrite11")).unwrap();
+                std::fs::remove_dir(&profile).unwrap();
+                assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stdout));
+                return;
+            }
+
+            crate::language::load();
+            assert!(!crate::language::english());
+            let mut app = FerriteApp::new();
+            let ctx = egui::Context::default();
+            let mut draw = |events| {
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200., 800.))),
+                    events, ..Default::default()
+                };
+                let frame = ctx.run_ui(input, |ui| { app.language_header(ui); app.home(ui); });
+                frame.shapes.into_iter().filter_map(|s| match s.shape {
+                    egui::Shape::Text(t) => Some((t.galley.text().to_owned(), t.pos + egui::vec2(3., 4.))),
+                    _ => None,
+                }).collect::<BTreeMap<_, _>>()
+            };
+            let mut labels = draw(vec![]);
+            for (button, expected, heading) in [("English", true, "Automatic settings"), ("Français", false, "Réglages automatiques")] {
+                let pos = labels[button];
+                for pressed in [true, false] {
+                    labels = draw(vec![egui::Event::PointerMoved(pos), egui::Event::PointerButton {
+                        pos, pressed, button: egui::PointerButton::Primary, modifiers: Default::default(),
+                    }]);
+                }
+                assert!(labels.contains_key(heading));
+                crate::language::load();
+                assert_eq!(crate::language::english(), expected);
+            }
         }
 
         #[test]
@@ -760,7 +809,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             Self { display_modes: None, search: String::new(), apps: crate::apps::Apps::default(), startup_preview: crate::startup::snapshot(),
                 page: Page::Accueil, selected: BTreeSet::new(), simulation: false,
                 confirmation: false, confirm_restore_all: false, store, storage_error: error,
-                message: "Choisis les réglages à appliquer, puis valide la sélection.".into(),
+                message: crate::language::text("Choisis les réglages à appliquer, puis valide la sélection.").into(),
                 machine: None, machine_error: None, machine_rx: rx,
                 supported: windows11_supported(), statuses: scan_statuses() }
         }
@@ -774,9 +823,9 @@ $w = Get-CimInstance Win32_OperatingSystem
         }
         // False means the current value already satisfies the requested setting.
         fn apply_one(&mut self, t: &Tweak) -> Result<bool, String> {
-            if let Some(e) = &self.storage_error { return Err(format!("Sauvegarde indisponible : {e}")); }
-            if !self.supported { return Err("Cette application exige Windows 11 pour modifier des réglages.".into()); }
-            if self.store.backups.contains_key(t.id) { return Err("Déjà appliqué par Ferrite11 ; restaurer d'abord.".into()); }
+            if let Some(e) = &self.storage_error { return Err(crate::local_format!("Sauvegarde indisponible : {e}", "Backup unavailable: {e}")); }
+            if !self.supported { return Err(crate::language::text("Cette application exige Windows 11 pour modifier des réglages.").into()); }
+            if self.store.backups.contains_key(t.id) { return Err(crate::language::text("Déjà appliqué par Ferrite11 ; restaurer d'abord.").into()); }
             if tweak_satisfied(t)? { return Ok(false); }
             let backup = if matches!(t.operation, Operation::OrphanStartup) {
                 Snapshot::Startup(self.startup_preview.clone()?)
@@ -785,7 +834,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             if let Err(e) = save_store(&self.store) {
                 self.store.backups.remove(t.id);
                 self.storage_error = Some(e.clone());
-                return Err(format!("Sauvegarde préalable impossible : {e}"));
+                return Err(crate::local_format!("Sauvegarde préalable impossible : {e}", "Could not back up the current settings: {e}"));
             }
             match do_change(t, &backup) {
                 Ok(()) => Ok(true),
@@ -794,27 +843,27 @@ $w = Get-CimInstance Win32_OperatingSystem
                     let rollback = if matches!(t.operation, Operation::OrphanStartup) { Ok(()) }
                         else { can_undo(t, &backup).and_then(|()| undo_snapshot(&backup)) };
                     if let Err(rollback) = rollback {
-                        Err(format!("Application échouée : {e}. Restauration partielle impossible : {rollback}. La sauvegarde a été conservée."))
+                        Err(crate::local_format!("Application échouée : {e}. Restauration partielle impossible : {rollback}. La sauvegarde a été conservée.", "Could not apply settings: {e}. Rollback also failed: {rollback}. The backup was kept."))
                     } else {
                         self.store.backups.remove(t.id);
                         if let Err(save_error) = save_store(&self.store) {
                             self.store.backups.insert(t.id.to_owned(), backup);
                             self.storage_error = Some(save_error.clone());
-                            return Err(format!("Valeurs rétablies après un échec ({e}). Sauvegarde toujours présente : {save_error}"));
+                            return Err(crate::local_format!("Valeurs rétablies après un échec ({e}). Sauvegarde toujours présente : {save_error}", "Original values restored after an error ({e}). The backup is still present: {save_error}"));
                         }
-                        Err(format!("Application échouée : {e}. Valeurs initiales rétablies."))
+                        Err(crate::local_format!("Application échouée : {e}. Valeurs initiales rétablies.", "Could not apply settings: {e}. Original values restored."))
                     }
                 }
             }
         }
         fn undo_one(&mut self, t: &Tweak) -> Result<(), String> {
-            let b = self.store.backups.get(t.id).cloned().ok_or("Aucune sauvegarde".to_owned())?;
+            let b = self.store.backups.get(t.id).cloned().ok_or(crate::language::text("Aucune sauvegarde").to_owned())?;
             can_undo(t, &b)?;
             undo_snapshot(&b)?;
             self.store.backups.remove(t.id);
             if let Err(e) = save_store(&self.store) {
                 self.store.backups.insert(t.id.to_owned(), b);
-                return Err(format!("Paramètres restaurés, mais état de sauvegarde non enregistré : {e}"));
+                return Err(crate::local_format!("Paramètres restaurés, mais état de sauvegarde non enregistré : {e}", "Settings restored, but the backup status could not be saved: {e}"));
             }
             self.statuses.insert(t.id.to_owned(), tweak_satisfied(t));
             Ok(())
@@ -822,9 +871,9 @@ $w = Get-CimInstance Win32_OperatingSystem
         fn run_apply(&mut self) {
             let found: Vec<_> = tweaks().into_iter()
                 .filter(|t| self.selected.contains(t.id)).collect();
-            if found.is_empty() { self.message = "Aucune option automatique cochée.".into(); return; }
+            if found.is_empty() { self.message = crate::language::text("Aucune option automatique cochée.").into(); return; }
             if self.simulation {
-                self.message = format!("Simulation : {} action(s) sélectionnée(s), aucune écriture.", found.len());
+                self.message = crate::local_format!("Simulation : {} action(s) sélectionnée(s), aucune écriture.", "Preview: {} action(s) selected. No changes made.", found.len());
                 return;
             }
             let mut errors = Vec::new();
@@ -837,7 +886,7 @@ $w = Get-CimInstance Win32_OperatingSystem
                         ok += 1;
                         self.selected.remove(t.id);
                         self.statuses.insert(t.id.to_owned(), tweak_satisfied(&t));
-                        self.push_log(format!("APPLIQUÉ : {}", t.title));
+                        self.push_log(crate::local_format!("APPLIQUÉ : {}", "APPLIED: {}", t.title));
                     },
                     Ok(false) => {
                         unchanged += 1;
@@ -851,9 +900,9 @@ $w = Get-CimInstance Win32_OperatingSystem
                 }
             }
             self.confirmation = false;
-            let summary = format!("{ok} réglage(s) appliqué(s), {unchanged} déjà conforme(s), {} erreur(s). {}", errors.len(), errors.join(" | "));
+            let summary = crate::local_format!("{ok} réglage(s) appliqué(s), {unchanged} déjà conforme(s), {} erreur(s). {}", "{ok} setting(s) applied, {unchanged} already matched, {} error(s). {}", errors.len(), errors.join(" | "));
             if let Some(e) = &self.storage_error {
-                self.message = format!("{summary} Traitement interrompu : {e}");
+                self.message = crate::local_format!("{summary} Traitement interrompu : {e}", "{summary} Stopped: {e}");
             } else {
                 self.push_log(summary);
             }
@@ -863,13 +912,13 @@ $w = Get-CimInstance Win32_OperatingSystem
             for t in tweaks() {
                 if self.store.backups.contains_key(t.id) {
                     match self.undo_one(&t) {
-                        Ok(()) => { ok += 1; self.push_log(format!("RESTAURÉ : {}", t.title)); },
+                        Ok(()) => { ok += 1; self.push_log(crate::local_format!("RESTAURÉ : {}", "RESTORED: {}", t.title)); },
                         Err(e) => errors.push(format!("{} : {e}", t.title)),
                     }
                 }
             }
             self.confirm_restore_all = false;
-            self.push_log(format!("Restaurations : {ok} ; erreurs : {}. {}", errors.len(), errors.join(" | ")));
+            self.push_log(crate::local_format!("Restaurations : {ok} ; erreurs : {}. {}", "Restored: {ok}. Errors: {}. {}", errors.len(), errors.join(" | ")));
         }
         fn action_card(&mut self, ui: &mut egui::Ui, t: &Tweak) {
             let backed_up = self.store.backups.contains_key(t.id);
@@ -879,29 +928,29 @@ $w = Get-CimInstance Win32_OperatingSystem
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     let mut checked = self.selected.contains(t.id);
-                    let label = if backed_up { format!("{}  [appliqué]", t.title) } else { t.title.to_string() };
+                    let label = if backed_up { crate::local_format!("{}  [appliqué]", "{}  [applied]", t.title) } else { t.title.to_string() };
                     if ui.add_enabled(available && self.supported && self.storage_error.is_none(), egui::Checkbox::new(&mut checked, RichText::new(label).strong().size(17.0))).changed() {
                         if checked { self.selected.insert(t.id.to_owned()); } else { self.selected.remove(t.id); }
                         self.confirmation = false;
-                        self.message = format!("{} · {}", t.title, if checked { "ajouté à la sélection" } else { "retiré de la sélection" });
+                        self.message = format!("{} · {}", t.title, if checked { crate::language::text("ajouté à la sélection") } else { crate::language::text("retiré de la sélection") });
                         ui.ctx().request_repaint();
                     }
-                    ui.label(RichText::new(format!("Risque : {}", t.risk)).color(Color32::LIGHT_BLUE));
+                    ui.label(RichText::new(crate::local_format!("Risque : {}", "Risk: {}", t.risk)).color(Color32::LIGHT_BLUE));
                 });
-                if self.selected.contains(t.id) { ui.colored_label(Color32::LIGHT_BLUE, "Sélectionné · en attente de validation"); }
+                if self.selected.contains(t.id) { ui.colored_label(Color32::LIGHT_BLUE, crate::language::text("Sélectionné · en attente de validation")); }
                 ui.label(t.description);
-                ui.label(RichText::new(format!("Effet attendu : {}", t.effect)).color(Color32::GRAY));
-                ui.label(RichText::new(format!("Prise d'effet : {}", t.restart)).small().color(Color32::GRAY));
+                ui.label(RichText::new(crate::local_format!("Effet attendu : {}", "Expected effect: {}", t.effect)).color(Color32::GRAY));
+                ui.label(RichText::new(crate::local_format!("Prise d'effet : {}", "Takes effect: {}", t.restart)).small().color(Color32::GRAY));
                 match self.statuses.get(t.id) {
-                    Some(Ok(true)) => { ui.label(RichText::new("État lu : réglage déjà conforme à l'optimisation proposée.").color(Color32::LIGHT_GREEN).small()); },
-                    Some(Err(e)) => { ui.label(RichText::new(format!("État non lisible : {e}")).small().color(Color32::YELLOW)); },
-                    None => { ui.small("État inconnu. Actualise les réglages depuis le tableau de bord."); },
+                    Some(Ok(true)) => { ui.label(RichText::new(crate::language::text("État lu : réglage déjà conforme à l'optimisation proposée.")).color(Color32::LIGHT_GREEN).small()); },
+                    Some(Err(e)) => { ui.label(RichText::new(crate::local_format!("État non lisible : {e}", "Could not read the current value: {e}")).small().color(Color32::YELLOW)); },
+                    None => { ui.small(crate::language::text("État inconnu. Actualise les réglages depuis le tableau de bord.")); },
                     _ => {},
                 }
-                if backed_up && ui.add_enabled(self.storage_error.is_none(), egui::Button::new("↩ Restaurer ce réglage")).clicked() {
+                if backed_up && ui.add_enabled(self.storage_error.is_none(), egui::Button::new(crate::language::text("↩ Restaurer ce réglage"))).clicked() {
                     match self.undo_one(t) {
-                        Ok(()) => self.push_log(format!("RESTAURÉ : {}", t.title)),
-                        Err(e) => self.push_log(format!("ÉCHEC restauration {} : {e}", t.title)),
+                        Ok(()) => self.push_log(crate::local_format!("RESTAURÉ : {}", "RESTORED: {}", t.title)),
+                        Err(e) => self.push_log(crate::local_format!("ÉCHEC restauration {} : {e}", "Could not restore {}: {e}", t.title)),
                     }
                 }
             });
@@ -911,30 +960,30 @@ $w = Get-CimInstance Win32_OperatingSystem
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 let mut done = self.store.manual_done.contains(g.id);
-                ui.label(RichText::new(g.title).strong().size(17.0));
-                ui.label(g.description);
-                ui.label(RichText::new(format!("Bénéfice possible : {}  •  Risque : {}", g.benefit, g.risk)).color(Color32::GRAY));
-                egui::CollapsingHeader::new("Voir les étapes et le retour arrière")
+                ui.label(RichText::new(crate::language::text(g.title)).strong().size(17.0));
+                ui.label(crate::language::text(g.description));
+                ui.label(RichText::new(crate::local_format!("Bénéfice possible : {}  •  Risque : {}", "Possible benefit: {}  •  Risk: {}", crate::language::text(g.benefit), crate::language::text(g.risk))).color(Color32::GRAY));
+                egui::CollapsingHeader::new(crate::language::text("Voir les étapes et le retour arrière"))
                     .id_salt(g.id)
                     .show(ui, |ui| {
-                        ui.strong("Marche à suivre");
-                        ui.label(g.steps);
-                        ui.strong("Retour arrière");
-                        ui.label(g.undo);
+                        ui.strong(crate::language::text("Marche à suivre"));
+                        ui.label(crate::language::text(g.steps));
+                        ui.strong(crate::language::text("Retour arrière"));
+                        ui.label(crate::language::text(g.undo));
                     });
-                if ui.button(g.button).clicked() {
-                    if let Err(e) = open_target(g.target) { self.message = format!("Impossible d'ouvrir la page : {e}"); }
+                if ui.button(crate::language::text(g.button)).clicked() {
+                    if let Err(e) = open_target(g.target) { self.message = crate::local_format!("Impossible d'ouvrir la page : {e}", "Could not open the page: {e}"); }
                 }
-                self.guide_progress(ui, g.id, g.title, &mut done);
+                self.guide_progress(ui, g.id, crate::language::text(g.title), &mut done);
             });
             ui.add_space(8.0);
         }
         fn guide_progress(&mut self, ui: &mut egui::Ui, id: &str, title: &str, done: &mut bool) {
-                if ui.add_enabled(self.storage_error.is_none(), egui::Checkbox::new(done, "Étape réalisée manuellement")).changed() {
+                if ui.add_enabled(self.storage_error.is_none(), egui::Checkbox::new(done, crate::language::text("Étape réalisée manuellement"))).changed() {
                     if *done { self.store.manual_done.insert(id.to_string()); }
                     else { self.store.manual_done.remove(id); }
                     match save_store(&self.store) {
-                        Ok(()) => self.message = format!("{} · {}", title, if *done { "étape marquée comme réalisée" } else { "étape à faire" }),
+                        Ok(()) => self.message = format!("{} · {}", title, if *done { crate::language::text("étape marquée comme réalisée") } else { crate::language::text("étape à faire") }),
                         Err(e) => {
                             if *done { self.store.manual_done.remove(id); } else { self.store.manual_done.insert(id.to_owned()); }
                             self.storage_error = Some(e);
@@ -945,22 +994,22 @@ $w = Get-CimInstance Win32_OperatingSystem
         fn option_card(&mut self, ui: &mut egui::Ui, g: &OptionGuide) {
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.strong(g.title);
-                ui.label(g.note);
-                egui::CollapsingHeader::new("Détails et retour arrière").id_salt(g.id).show(ui, |ui| {
-                    ui.label(g.steps);
-                    ui.strong("Retour arrière");
-                    ui.label(g.undo);
+                ui.strong(crate::language::text(g.title));
+                ui.label(crate::language::text(g.note));
+                egui::CollapsingHeader::new(crate::language::text("Détails et retour arrière")).id_salt(g.id).show(ui, |ui| {
+                    ui.label(crate::language::text(g.steps));
+                    ui.strong(crate::language::text("Retour arrière"));
+                    ui.label(crate::language::text(g.undo));
                     ui.horizontal_wrapped(|ui| {
-                        if !g.target.is_empty() && g.target != g.source && ui.button("Ouvrir le réglage ou l’outil").clicked() {
+                        if !g.target.is_empty() && g.target != g.source && ui.button(crate::language::text("Ouvrir le réglage ou l’outil")).clicked() {
                             if let Err(e) = open_target(g.target) { self.message = e; }
                         }
-                        if ui.button("Consulter la source").clicked() {
+                        if ui.button(crate::language::text("Consulter la source")).clicked() {
                             if let Err(e) = open_target(g.source) { self.message = e; }
                         }
                     });
                     let mut done = self.store.manual_done.contains(g.id);
-                    self.guide_progress(ui, g.id, g.title, &mut done);
+                    self.guide_progress(ui, g.id, crate::language::text(g.title), &mut done);
                 });
             });
             ui.add_space(8.0);
@@ -968,17 +1017,17 @@ $w = Get-CimInstance Win32_OperatingSystem
         fn hardware_summary(&mut self, ui: &mut egui::Ui) {
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.heading("Configuration détectée localement");
+                ui.heading(crate::language::text("Configuration détectée localement"));
                 if let Some(m) = &self.machine {
-                    ui.label(format!("Système : {} (build {})", m.os, m.build));
-                    ui.label(format!("Processeur : {}", m.cpu));
-                    ui.label(format!("Graphiques : {}", m.gpu));
-                    ui.label(format!("Mémoire physique : {:.1} Go", m.ram_gb));
-                    ui.label(RichText::new("Détection locale et indicative. Les étapes chipset/GPU non pertinentes sont masquées automatiquement ; aucun réglage matériel n'est forcé.").small().color(Color32::GRAY));
+                    ui.label(crate::local_format!("Système : {} (build {})", "System: {} (build {})", m.os, m.build));
+                    ui.label(crate::local_format!("Processeur : {}", "Processor: {}", m.cpu));
+                    ui.label(crate::local_format!("Graphiques : {}", "Graphics: {}", m.gpu));
+                    ui.label(crate::local_format!("Mémoire physique : {:.1} Go", "Physical memory: {:.1} GB", m.ram_gb));
+                    ui.label(RichText::new(crate::language::text("Détection locale et indicative. Les étapes chipset/GPU non pertinentes sont masquées automatiquement ; aucun réglage matériel n'est forcé.")).small().color(Color32::GRAY));
                 } else if let Some(error) = &self.machine_error {
-                    ui.label(format!("Détection indisponible : {error}"));
+                    ui.label(crate::local_format!("Détection indisponible : {error}", "Hardware detection unavailable: {error}"));
                 } else {
-                    ui.spinner(); ui.label("Détection du matériel en cours…");
+                    ui.spinner(); ui.label(crate::language::text("Détection du matériel en cours…"));
                 }
             });
         }
@@ -996,10 +1045,10 @@ $w = Get-CimInstance Win32_OperatingSystem
             }
         }
         fn home(&mut self, ui: &mut egui::Ui) {
-            ui.label("Rechercher dans les réglages et les guides");
+            ui.label(crate::language::text("Rechercher dans les réglages et les guides"));
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Ex. G-SYNC, télémétrie, veille…"));
-                if !self.search.is_empty() && ui.button("Effacer").clicked() { self.search.clear(); }
+                ui.add(egui::TextEdit::singleline(&mut self.search).hint_text(crate::language::text("Ex. G-SYNC, télémétrie, veille…")));
+                if !self.search.is_empty() && ui.button(crate::language::text("Effacer")).clicked() { self.search.clear(); }
             });
             let query = self.search.trim().to_lowercase();
             if !query.is_empty() {
@@ -1008,18 +1057,18 @@ $w = Get-CimInstance Win32_OperatingSystem
                 for t in tweaks().iter().filter(|t| found(&[t.title, t.description])) {
                     self.action_card(ui, t); count += 1;
                 }
-                for g in GUIDES.iter().filter(|g| found(&[g.title, g.description, g.steps])) {
+                for g in GUIDES.iter().filter(|g| found(&[crate::language::text(g.title), crate::language::text(g.description), crate::language::text(g.steps)])) {
                     self.guide_card(ui, g); count += 1;
                 }
-                for g in options().filter(|g| found(&[g.title, g.note, g.steps])) {
+                for g in options().filter(|g| found(&[crate::language::text(g.title), crate::language::text(g.note), crate::language::text(g.steps)])) {
                     self.option_card(ui, g); count += 1;
                 }
-                if count == 0 { ui.label("Aucun réglage trouvé pour cette recherche."); }
+                if count == 0 { ui.label(crate::language::text("Aucun réglage trouvé pour cette recherche.")); }
                 return;
             }
-            ui.heading("Réglages automatiques");
-            ui.label("Vérifie les démarrages orphelins, les doublons du PATH et l’affichage des extensions de fichiers. Tu peux retirer chaque proposition avant de valider.");
-            if ui.button("Analyser et sélectionner les réglages utiles").clicked() {
+            ui.heading(crate::language::text("Réglages automatiques"));
+            ui.label(crate::language::text("Vérifie les démarrages orphelins, les doublons du PATH et l’affichage des extensions de fichiers. Tu peux retirer chaque proposition avant de valider."));
+            if ui.button(crate::language::text("Analyser et sélectionner les réglages utiles")).clicked() {
                 self.statuses = scan_statuses();
                 let mut unavailable = 0;
                 self.startup_preview = crate::startup::snapshot();
@@ -1032,10 +1081,10 @@ $w = Get-CimInstance Win32_OperatingSystem
                 }
                 self.confirm_restore_all = false;
                 self.confirmation = false;
-                self.message = format!("Analyse terminée · {} réglage(s) dans la sélection · {unavailable} vérification(s) indisponible(s).", self.selected.len());
+                self.message = crate::local_format!("Analyse terminée · {} réglage(s) dans la sélection · {unavailable} vérification(s) indisponible(s).", "Scan complete · {} setting(s) selected · {unavailable} check(s) unavailable.", self.selected.len());
             }
             ui.add_space(12.0);
-            ui.heading("Choisir une catégorie");
+            ui.heading(crate::language::text("Choisir une catégorie"));
             ui.horizontal_wrapped(|ui| {
                 for page in Page::ALL {
                     if !matches!(page, Page::Accueil | Page::Journal) && ui.button(page.label()).clicked() { self.page = page; }
@@ -1043,22 +1092,22 @@ $w = Get-CimInstance Win32_OperatingSystem
             });
             ui.add_space(12.0);
             self.hardware_summary(ui);
-            if ui.button("Actualiser les états des réglages").clicked() { self.statuses = scan_statuses(); }
+            if ui.button(crate::language::text("Actualiser les états des réglages")).clicked() { self.statuses = scan_statuses(); }
             if !self.supported {
-                ui.colored_label(Color32::YELLOW, "Windows 11 non détecté : modifications automatiques bloquées par sécurité.");
+                ui.colored_label(Color32::YELLOW, crate::language::text("Windows 11 non détecté : modifications automatiques bloquées par sécurité."));
             }
             ui.add_space(8.0);
             let total_done = self.store.manual_done.len();
             let changes = self.store.backups.len();
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(format!("{changes} réglage(s) géré(s) par Ferrite11")).strong());
+                ui.label(RichText::new(crate::local_format!("{changes} réglage(s) géré(s) par Ferrite11", "{changes} setting(s) managed by Ferrite11")).strong());
                 ui.separator();
-                ui.label(format!("{total_done} étape(s) manuelle(s) cochée(s)"));
+                ui.label(crate::local_format!("{total_done} étape(s) manuelle(s) cochée(s)", "{total_done} manual step(s) marked complete"));
                 ui.separator();
-                ui.label(format!("{} action(s) sélectionnée(s)", self.selected.len()));
+                ui.label(crate::local_format!("{} action(s) sélectionnée(s)", "{} action(s) selected", self.selected.len()));
             });
             ui.add_space(14.0);
-            if ui.button("Ouvrir la protection du système").clicked() {
+            if ui.button(crate::language::text("Ouvrir la protection du système")).clicked() {
                 if let Err(e) = Command::new("SystemPropertiesProtection.exe").spawn() { self.message = e.to_string(); }
             }
         }
@@ -1066,10 +1115,10 @@ $w = Get-CimInstance Win32_OperatingSystem
             match self.page {
                 Page::Accueil => self.home(ui),
                 Page::Journal => {
-                    ui.heading("Journal et sauvegardes");
-                    ui.label(format!("Fichier : {}", storage_path().display()));
-                    ui.label("Les sauvegardes sont réalisées avant chaque modification. Toute restauration en conflit avec un changement externe est bloquée.");
-                    if ui.button("Ouvrir le dossier des sauvegardes").clicked() {
+                    ui.heading(crate::language::text("Journal et sauvegardes"));
+                    ui.label(crate::local_format!("Fichier : {}", "File: {}", storage_path().display()));
+                    ui.label(crate::language::text("Les sauvegardes sont réalisées avant chaque modification. Toute restauration en conflit avec un changement externe est bloquée."));
+                    if ui.button(crate::language::text("Ouvrir le dossier des sauvegardes")).clicked() {
                         if let Some(dir) = storage_path().parent() { let _ = Command::new("explorer.exe").arg(dir).spawn(); }
                     }
                     ui.separator();
@@ -1077,27 +1126,27 @@ $w = Get-CimInstance Win32_OperatingSystem
                 }
                 Page::Outils => {
                     self.apps.ui(ui, self.simulation);
-                    ui.collapsing("Autres outils à installer manuellement", |ui| {
-                        ui.label("Autoruns permet d’examiner les démarrages avancés. Note l’état de chaque entrée pour pouvoir la réactiver.");
-                        if ui.button("Autoruns de Microsoft").clicked() { if let Err(e) = open_target("https://learn.microsoft.com/fr-fr/sysinternals/downloads/autoruns") { self.message = e; } }
+                    ui.collapsing(crate::language::text("Autres outils à installer manuellement"), |ui| {
+                        ui.label(crate::language::text("Autoruns permet d’examiner les démarrages avancés. Note l’état de chaque entrée pour pouvoir la réactiver."));
+                        if ui.button(crate::language::text("Autoruns de Microsoft")).clicked() { if let Err(e) = open_target("https://learn.microsoft.com/fr-fr/sysinternals/downloads/autoruns") { self.message = e; } }
                     });
                 }
                 page => {
                     ui.heading(page.label());
                     if matches!(page, Page::Jeux | Page::Nvidia) {
-                        if ui.button("Vérifier la fréquence des écrans").clicked() {
+                        if ui.button(crate::language::text("Vérifier la fréquence des écrans")).clicked() {
                             self.display_modes = Some(crate::display_modes::summary());
                         }
                         if let Some(outputs) = &self.display_modes {
                             for output in outputs { ui.label(output); }
-                            if ui.button("Ouvrir Affichage avancé").clicked() {
+                            if ui.button(crate::language::text("Ouvrir Affichage avancé")).clicked() {
                                 if let Err(e) = open_target("ms-settings:display-advanced") { self.message = e; }
                             }
                         }
                     }
                     if page == Page::Jeux {
-                        ui.label("Pour jouer sans capture Xbox, prépare ensemble le Mode Jeu, l’arrêt des captures et la désactivation du raccourci manette de la Game Bar.");
-                        if ui.button("Préparer ces trois réglages de jeu").clicked() {
+                        ui.label(crate::language::text("Pour jouer sans capture Xbox, prépare ensemble le Mode Jeu, l’arrêt des captures et la désactivation du raccourci manette de la Game Bar."));
+                        if ui.button(crate::language::text("Préparer ces trois réglages de jeu")).clicked() {
                             self.statuses = scan_statuses();
                             let mut added = 0;
                             let mut unknown = 0;
@@ -1115,59 +1164,76 @@ $w = Get-CimInstance Win32_OperatingSystem
                             }
                             self.confirmation = false;
                             self.confirm_restore_all = false;
-                            self.message = format!("Profil jeu · {added} réglage(s) à valider, {unknown} état(s) illisible(s).");
+                            self.message = crate::local_format!("Profil jeu · {added} réglage(s) à valider, {unknown} état(s) illisible(s).", "Gaming profile · {added} setting(s) to review, {unknown} unknown status(es).");
                         }
                     }
                     if page == Page::Nvidia && self.machine.as_ref().is_some_and(|m| {
                         let gpu = m.gpu.to_lowercase();
                         !gpu.contains("nvidia") && !gpu.contains("geforce")
-                    }) { ui.label("Aucun GPU NVIDIA détecté sur ce PC. Ces réglages concernent les machines équipées d’un pilote NVIDIA."); }
+                    }) { ui.label(crate::language::text("Aucun GPU NVIDIA détecté sur ce PC. Ces réglages concernent les machines équipées d’un pilote NVIDIA.")); }
                     if page == Page::Materiel { self.hardware_summary(ui); ui.add_space(9.0); }
                     let actions = tweaks();
                     if actions.iter().any(|t| t.page == page) {
-                        ui.heading("Réglages à valider");
+                        ui.heading(crate::language::text("Réglages à valider"));
                         for t in actions.iter().filter(|t| t.page == page) { self.action_card(ui, t); }
                     }
                     let guides: Vec<&Guide> = GUIDES.iter().filter(|g| g.page == page && self.guide_relevant(g)).collect();
                     if !guides.is_empty() {
-                        ui.heading("Étapes manuelles");
-                        ui.label("Ouvre le guide, réalise l’étape puis coche-la pour enregistrer ton avancement.");
+                        ui.heading(crate::language::text("Étapes manuelles"));
+                        ui.label(crate::language::text("Ouvre le guide, réalise l’étape puis coche-la pour enregistrer ton avancement."));
                     }
                     for g in guides { self.guide_card(ui, g); }
                     for g in options().filter(|g| g.page == page) { self.option_card(ui, g); }
                 }
             }
         }
+        fn language_header(&mut self, ui: &mut egui::Ui) {
+            ui.horizontal_wrapped(|ui| {
+                ui.heading(RichText::new("FERRITE11   /   RUST WINDOWS OPTIMIZER").size(22.0).strong());
+                let current = crate::language::english();
+                for (english, label) in [(false, "Français"), (true, "English")] {
+                    if ui.selectable_label(current == english, label).clicked() && current != english {
+                        self.message = match crate::language::select(english) {
+                            Ok(()) => String::new(),
+                            Err(e) => crate::local_format!("Langue modifiée pour cette session. Enregistrement impossible : {e}", "Language changed for this session. Could not save your preference: {e}"),
+                        };
+                        self.apps.language_changed();
+                        if self.display_modes.is_some() { self.display_modes = Some(crate::display_modes::summary()); }
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(crate::language::text(WINDOW_TITLE).into()));
+                    }
+                }
+            });
+        }
         fn bottom_actions(&mut self, ui: &mut egui::Ui) {
             ui.separator();
             ui.horizontal_wrapped(|ui| {
-                ui.strong(format!("Sélection : {}", self.selected.len()));
-                if ui.checkbox(&mut self.simulation, "Mode simulation").changed() {
+                ui.strong(crate::local_format!("Sélection : {}", "Selected: {}", self.selected.len()));
+                if ui.checkbox(&mut self.simulation, crate::language::text("Mode simulation")).changed() {
                     self.confirmation = false;
-                    self.message = if self.simulation { "Valider affichera une simulation." } else { "Valider affichera le récapitulatif avant application." }.into();
+                    self.message = if self.simulation { crate::language::text("Valider affichera une simulation.") } else { crate::language::text("Valider affichera le récapitulatif avant application.") }.into();
                 }
                 if ui.add_enabled(!self.selected.is_empty() && self.storage_error.is_none() && self.supported,
-                    egui::Button::new(RichText::new("Valider").strong())).clicked() {
+                    egui::Button::new(RichText::new(crate::language::text("Valider")).strong())).clicked() {
                     self.confirm_restore_all = false;
                     if self.selected.contains("orphan-startup") { self.startup_preview = crate::startup::snapshot(); }
                     self.confirmation = true;
-                    self.message = if self.simulation { "Simulation terminée. Aucun réglage Windows modifié." } else { "Vérifie la sélection puis confirme son application." }.into();
+                    self.message = if self.simulation { crate::language::text("Simulation terminée. Aucun réglage Windows modifié.") } else { crate::language::text("Vérifie la sélection puis confirme son application.") }.into();
                 }
-                if ui.add_enabled(self.storage_error.is_none() && !self.store.backups.is_empty(), egui::Button::new("Restaurer les réglages Windows")).clicked() {
+                if ui.add_enabled(self.storage_error.is_none() && !self.store.backups.is_empty(), egui::Button::new(crate::language::text("Restaurer les réglages Windows"))).clicked() {
                     self.confirmation = false;
                     self.confirm_restore_all = true;
                 }
             });
             if self.confirmation {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(RichText::new(if self.simulation { "PRÉVISUALISATION" } else { "CONFIRMATION AVANT MODIFICATION" }).strong());
+                    ui.label(RichText::new(if self.simulation { crate::language::text("PRÉVISUALISATION") } else { crate::language::text("CONFIRMATION AVANT MODIFICATION") }).strong());
                     let available: Vec<_> = tweaks().into_iter().filter(|t| self.selected.contains(t.id)).collect();
-                    if available.is_empty() { ui.label("Aucun réglage automatique sélectionné."); }
+                    if available.is_empty() { ui.label(crate::language::text("Aucun réglage automatique sélectionné.")); }
                     for t in &available {
                         ui.horizontal_wrapped(|ui| {
                             ui.strong(t.title);
-                            ui.label(format!("{} · risque {}", t.page.label(), t.risk));
-                            if ui.small_button("Retirer").clicked() {
+                            ui.label(crate::local_format!("{} · risque {}", "{} · risk: {}", t.page.label(), t.risk));
+                            if ui.small_button(crate::language::text("Retirer")).clicked() {
                                 self.selected.remove(t.id);
                                 self.confirmation = !self.selected.is_empty();
                             }
@@ -1178,26 +1244,26 @@ $w = Get-CimInstance Win32_OperatingSystem
                                 ui.label(RichText::new(format!("  HKCU\\{} : {} → {}", c.path, c.name, target)).small().color(Color32::GRAY));
                             },
                             Operation::OrphanStartup => match &self.startup_preview {
-                                Ok(entries) if entries.is_empty() => { ui.small("Aucune entrée orpheline détectée."); },
+                                Ok(entries) if entries.is_empty() => { ui.small(crate::language::text("Aucune entrée orpheline détectée.")); },
                                 Ok(entries) => for name in entries.names() { ui.label(format!("• {name}")); },
                                 Err(e) => { ui.colored_label(Color32::YELLOW, e); },
                             },
-                            Operation::CleanPath => { ui.small("Sauvegarde du PATH actuel, puis retrait des entrées identiques."); },
+                            Operation::CleanPath => { ui.small(crate::language::text("Sauvegarde du PATH actuel, puis retrait des entrées identiques.")); },
                             Operation::BalancedPower => { ui.label(RichText::new("  powercfg /setactive SCHEME_BALANCED").small().color(Color32::GRAY)); }
                         }
                     }
                     ui.horizontal(|ui| {
-                        if ui.button(if self.simulation { "Fermer la simulation" } else { "Annuler" }).clicked() { self.confirmation = false; }
-                        if !self.simulation && !available.is_empty() && ui.button("Confirmer et appliquer").clicked() { self.run_apply(); }
+                        if ui.button(if self.simulation { crate::language::text("Fermer la simulation") } else { crate::language::text("Annuler") }).clicked() { self.confirmation = false; }
+                        if !self.simulation && !available.is_empty() && ui.button(crate::language::text("Confirmer et appliquer")).clicked() { self.run_apply(); }
                     });
                 });
             }
             if self.confirm_restore_all {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label("Restaurer les valeurs d'origine enregistrées par Ferrite11 ? Les modifications effectuées ailleurs depuis seront respectées.");
+                    ui.label(crate::language::text("Restaurer les valeurs d'origine enregistrées par Ferrite11 ? Les modifications effectuées ailleurs depuis seront respectées."));
                     ui.horizontal(|ui| {
-                        if ui.button("Annuler").clicked() { self.confirm_restore_all = false; }
-                        if ui.button("Confirmer la restauration").clicked() { self.restore_all(); }
+                        if ui.button(crate::language::text("Annuler")).clicked() { self.confirm_restore_all = false; }
+                        if ui.button(crate::language::text("Confirmer la restauration")).clicked() { self.restore_all(); }
                     });
                 });
             }
@@ -1211,16 +1277,16 @@ $w = Get-CimInstance Win32_OperatingSystem
                 match self.machine_rx.try_recv() {
                     Ok(Ok(machine)) => self.machine = Some(machine),
                     Ok(Err(e)) => self.machine_error = Some(e),
-                    Err(mpsc::TryRecvError::Disconnected) => self.machine_error = Some("Processus de détection interrompu".into()),
+                    Err(mpsc::TryRecvError::Disconnected) => self.machine_error = Some(crate::language::text("Processus de détection interrompu").into()),
                     Err(mpsc::TryRecvError::Empty) => ui.ctx().request_repaint_after(Duration::from_millis(350)),
                 }
             }
             ui.ctx().set_visuals(egui::Visuals::dark());
             egui::Panel::top("header").resizable(false).show(ui, |ui| {
-                ui.heading(RichText::new("FERRITE11   /   RUST WINDOWS OPTIMIZER").size(22.0).strong());
-                ui.label(RichText::new("Optimiseur universel • configuration locale • réversible • aucun profil matériel imposé").color(Color32::GRAY));
+                self.language_header(ui);
+                ui.label(RichText::new(crate::language::text("Optimiseur universel • configuration locale • réversible • aucun profil matériel imposé")).color(Color32::GRAY));
                 if let Some(e) = &self.storage_error {
-                    ui.colored_label(Color32::RED, format!("Mode lecture seule : {e}. Corrige le fichier de sauvegarde avant toute modification."));
+                    ui.colored_label(Color32::RED, crate::local_format!("Mode lecture seule : {e}. Corrige le fichier de sauvegarde avant toute modification.", "Read-only mode: {e}. Fix the backup file before making changes."));
                 }
             });
             let actions_height = ui.available_height() * 0.45;
@@ -1235,8 +1301,8 @@ $w = Get-CimInstance Win32_OperatingSystem
                             ui.add_space(6.0);
                         }
                         ui.separator();
-                        ui.label(RichText::new("Aucun service critique modifié").small().color(Color32::LIGHT_GREEN));
-                        ui.label(RichText::new("Sauvegarde : %LOCALAPPDATA%\\Ferrite11").small().color(Color32::GRAY));
+                        ui.label(RichText::new(crate::language::text("Aucun service critique modifié")).small().color(Color32::LIGHT_GREEN));
+                        ui.label(RichText::new(crate::language::text("Sauvegarde : %LOCALAPPDATA%\\Ferrite11")).small().color(Color32::GRAY));
                 });
             });
             egui::CentralPanel::default().show(ui, |ui| {
@@ -1267,13 +1333,17 @@ $w = Get-CimInstance Win32_OperatingSystem
         let handle = unsafe { OwnedHandle::from_raw_handle(raw) };
         if !already_open { return Ok(Some(handle)); }
 
-        let title = wide(WINDOW_TITLE);
-        let window = unsafe { FindWindowW(null(), title.as_ptr()) };
+        let title = wide(crate::language::text(WINDOW_TITLE));
+        let mut window = unsafe { FindWindowW(null(), title.as_ptr()) };
+        if window.is_null() {
+            let other = wide(if crate::language::english() { WINDOW_TITLE } else { "Ferrite11 — Windows 11 Optimizer" });
+            window = unsafe { FindWindowW(null(), other.as_ptr()) };
+        }
         if !window.is_null() {
             if unsafe { IsIconic(window) } != 0 { unsafe { ShowWindow(window, SW_RESTORE); } }
             if unsafe { SetForegroundWindow(window) } != 0 { return Ok(None); }
         }
-        let message = wide("Ferrite11 est déjà ouvert. Retrouve la fenêtre dans la barre des tâches.");
+        let message = wide(crate::language::text("Ferrite11 est déjà ouvert. Retrouve la fenêtre dans la barre des tâches."));
         unsafe { MessageBoxW(std::ptr::null_mut(), message.as_ptr(), title.as_ptr(), MB_OK | MB_ICONINFORMATION); }
         Ok(None)
     }
@@ -1283,7 +1353,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             return Ok(());
         };
         let options = eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_title(WINDOW_TITLE)
+            viewport: egui::ViewportBuilder::default().with_title(crate::language::text(WINDOW_TITLE))
                 .with_inner_size([1130.0, 820.0]).with_min_inner_size([850.0, 640.0]),
             ..Default::default()
         };
@@ -1318,6 +1388,7 @@ $w = Get-CimInstance Win32_OperatingSystem
 
 #[cfg(windows)]
 fn main() -> eframe::Result {
+    language::load();
     if let Some(result) = apps::launch_from_args() {
         if let Err(message) = result {
             use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR};

@@ -25,12 +25,12 @@ fn install_roots() -> Result<Vec<PathBuf>, String> {
     let drive = std::env::var("SystemDrive").map_err(|e| e.to_string())?;
     let bytes = drive.as_bytes();
     if bytes.len() != 2 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' {
-        return Err("Lecteur système inconnu.".into());
+        return Err(crate::language::text("Lecteur système inconnu.").into());
     }
     let root: Vec<_> = format!("{drive}\\").encode_utf16().chain(Some(0)).collect();
     // GetDriveTypeW returns DRIVE_FIXED (3) for a local fixed disk.
     if unsafe { GetDriveTypeW(root.as_ptr()) } != 3 {
-        return Err("Le lecteur système n’est pas un disque local fixe.".into());
+        return Err(crate::language::text("Le lecteur système n’est pas un disque local fixe.").into());
     }
     let mut roots: Vec<_> = ["ProgramFiles", "ProgramFiles(x86)"].iter()
         .filter_map(std::env::var_os).map(PathBuf::from).collect();
@@ -116,7 +116,7 @@ impl Entry {
     fn identical_or_absent(&self, key: &RegKey) -> Result<bool, String> {
         match key.get_raw_value(&self.name) {
             Ok(raw) if raw.vtype == self.raw().vtype && raw.bytes.as_ref() == self.bytes => Ok(true),
-            Ok(_) => Err(format!("L’entrée « {} » a changé dans Windows.", self.name)),
+            Ok(_) => Err(crate::local_format!("L’entrée « {} » a changé dans Windows.", "The entry “{}” has changed in Windows.", self.name)),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(false),
             Err(e) => Err(e.to_string()),
         }
@@ -133,7 +133,7 @@ impl Saved {
         for entry in &self.0 {
             if !valid_name(&entry.name) || !names.insert(entry.name.to_lowercase())
                 || !exe_path(&entry.bytes, &roots).is_some_and(|p| confirmed_absent(&p)) {
-                return Err(format!("Le programme de « {} » est revenu, ou la sauvegarde ne correspond plus à un démarrage orphelin.", entry.name));
+                return Err(crate::local_format!("Le programme de « {} » est revenu, ou la sauvegarde ne correspond plus à un démarrage orphelin.", "The program for “{}” is present again or the backup no longer matches a missing startup program.", entry.name));
             }
         }
         Ok(())
@@ -166,7 +166,7 @@ impl Saved {
             } else if present {
                 key.delete_value(&e.name).map_err(|e| e.to_string())?;
             } else {
-                return Err(format!("L’entrée « {} » a déjà disparu. Actualise l’analyse.", e.name));
+                return Err(crate::local_format!("L’entrée « {} » a déjà disparu. Actualise l’analyse.", "The entry “{}” is already gone. Refresh the scan.", e.name));
             }
         }
         drop(key);

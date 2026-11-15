@@ -19,7 +19,7 @@ pub fn open_target(target: &str) -> Result<(), String> {
         )
     };
     if init < 0 && init != RPC_E_CHANGED_MODE {
-        return Err(format!("Initialisation Windows impossible ({init:#x})."));
+        return Err(crate::local_format!("Initialisation Windows impossible ({init:#x}).", "Could not initialize Windows ({init:#x})."));
     }
     let mut request = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,

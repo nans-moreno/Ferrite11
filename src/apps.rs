@@ -285,13 +285,14 @@ const MARKER: &str = "ferrite11-installation.txt";
 fn local_root() -> Result<PathBuf> {
     env::var_os("LOCALAPPDATA")
         .map(|p| PathBuf::from(p).join("Ferrite11").join("outils"))
-        .ok_or_else(|| "Le dossier des applications locales est indisponible.".into())
+        .ok_or_else(|| crate::language::text("Le dossier des applications locales est indisponible.").into())
 }
 fn windows() -> PathBuf {
     PathBuf::from(env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into()))
 }
 fn powershell() -> Command {
     let mut cmd = Command::new(windows().join(r"System32\WindowsPowerShell\v1.0\powershell.exe"));
+    cmd.env("FERRITE_LANGUAGE", if crate::language::english() { "en" } else { "fr" });
     cmd.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"])
         .creation_flags(0x08000000);
     cmd
@@ -362,19 +363,19 @@ fn new_stage(root: &Path, tool: &Tool) -> Result<PathBuf> {
 fn install(root: &Path, tool: &Tool, fetch: impl FnOnce(&Tool, &Path) -> Result<()>) -> Result<()> {
     let target = root.join(tool.id);
     if target.try_exists().map_err(|e| e.to_string())? {
-        return Err("Ce dossier existe déjà. Son contenu est conservé.".into());
+        return Err(crate::language::text("Ce dossier existe déjà. Son contenu est conservé.").into());
     }
     let stage = new_stage(root, tool)?;
     let result = (|| {
         fetch(tool, &stage)?;
         for name in tool.files {
             if !stage.join(name).is_file() {
-                return Err(format!("Fichier manquant : {name}"));
+                return Err(crate::local_format!("Fichier manquant : {name}", "Missing file: {name}"));
             }
         }
         fs::write(stage.join(MARKER), tool.id).map_err(|e| e.to_string())?;
         fs::rename(&stage, target)
-            .map_err(|e| format!("Activation de {} impossible. {e}", tool.name))
+            .map_err(|e| crate::local_format!("Activation de {} impossible. {e}", "Could not activate {}. {e}", tool.name))
     })();
     if result.is_err() {
         for name in tool.files.iter().copied().chain([MARKER, "download.tmp"]) {
@@ -388,7 +389,7 @@ fn install(root: &Path, tool: &Tool, fetch: impl FnOnce(&Tool, &Path) -> Result<
 fn rollback(root: &Path, tool: &Tool) -> Result<()> {
     let folder = root.join(tool.id);
     if !managed(root, tool) {
-        return Err("Cette installation n’appartient pas à Ferrite11.".into());
+        return Err(crate::language::text("Cette installation n’appartient pas à Ferrite11.").into());
     }
     // Acquire delete access to every file before touching the first one.
     // Keep the receipt until all owned binaries have been removed; retries are idempotent.
@@ -399,7 +400,7 @@ fn rollback(root: &Path, tool: &Tool) -> Result<()> {
         {
             match fs::symlink_metadata(folder.join(parent)) {
                 Ok(meta) if meta.file_attributes() & 0x400 != 0 => {
-                    return Err("Sous-dossier redirigé.".into());
+                    return Err(crate::language::text("Sous-dossier redirigé.").into());
                 }
                 Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.to_string()),
                 _ => (),
@@ -415,14 +416,14 @@ fn rollback(root: &Path, tool: &Tool) -> Result<()> {
         match handle {
             Ok(file) => held.push(file),
             Err(e) if e.kind() == io::ErrorKind::NotFound => (),
-            Err(e) => return Err(format!("Ferme {} puis réessaie. {e}", tool.name)),
+            Err(e) => return Err(crate::local_format!("Ferme {} puis réessaie. {e}", "Close {} and try again. {e}", tool.name)),
         }
     }
     for name in tool.files.iter().rev() {
         match fs::remove_file(folder.join(name)) {
             Ok(()) => (),
             Err(e) if e.kind() == io::ErrorKind::NotFound => (),
-            Err(e) => return Err(format!("Ferme {} puis réessaie. {e}", tool.name)),
+            Err(e) => return Err(crate::local_format!("Ferme {} puis réessaie. {e}", "Close {} and try again. {e}", tool.name)),
         }
     }
     fs::remove_file(folder.join(MARKER)).map_err(|e| e.to_string())?;
@@ -440,7 +441,7 @@ fn transact(tool: &Tool, remove: bool) -> Result<String> {
     for folder in [root.parent().unwrap(), &root, &root.join(tool.id)] {
         match fs::symlink_metadata(folder) {
             Ok(m) if m.file_attributes() & 0x400 != 0 => {
-                return Err("Le dossier des outils est redirigé.".into());
+                return Err(crate::language::text("Le dossier des outils est redirigé.").into());
             }
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.to_string()),
             _ => (),
@@ -453,7 +454,7 @@ fn transact(tool: &Tool, remove: bool) -> Result<String> {
         .open(root.join("installation.lock"))
         .map_err(|e| e.to_string())?;
     lock.try_lock()
-        .map_err(|_| "Une autre installation Ferrite11 est en cours.".to_string())?;
+        .map_err(|_| crate::language::text("Une autre installation Ferrite11 est en cours.").to_string())?;
     let exe = root.join(tool.id).join(tool.files[0]);
     let native = !crate::associations::extensions(tool.id).is_empty();
     if remove {
@@ -463,16 +464,16 @@ fn transact(tool: &Tool, remove: bool) -> Result<String> {
         }
         remove_old_shortcut(tool)?;
         rollback(&root, tool)?;
-        return Ok(format!("Copie de {} retirée.", tool.name));
+        return Ok(crate::local_format!("Copie de {} retirée.", "Removed the managed copy of {}.", tool.name));
     }
     if !native {
-        return Err("Aucune association native disponible.".into());
+        return Err(crate::language::text("Aucune association native disponible.").into());
     }
     if !managed(&root, tool) {
         install(&root, tool, download)?;
     }
     if !exe.is_file() {
-        return Err("Copie incomplète. Retire puis réinstalle l’outil.".into());
+        return Err(crate::language::text("Copie incomplète. Retire puis réinstalle l’outil.").into());
     }
     crate::associations::register(tool.id, tool.name, &exe).map_err(|e| e.to_string())?;
     remove_old_shortcut(tool)?;
@@ -482,14 +483,12 @@ fn transact(tool: &Tool, remove: bool) -> Result<String> {
     );
     if crate::shell::open_target(&page).is_err() {
         crate::shell::open_target("ms-settings:defaultapps").map_err(|e| {
-            format!(
-                "{} est disponible. Ouvre Paramètres → Applications → Applications par défaut. {e}",
+            crate::local_format!("{} est disponible. Ouvre Paramètres → Applications → Applications par défaut. {e}", "{} is available. Open Settings → Apps → Default apps. {e}",
                 tool.name
             )
         })?;
     }
-    Ok(format!(
-        "Sélectionne {} dans Windows pour les extensions voulues, puis actualise la liste.",
+    Ok(crate::local_format!("Sélectionne {} dans Windows pour les extensions voulues, puis actualise la liste.", "Choose {} for the file types you want in Windows, then refresh the list.",
         tool.name
     ))
 }
@@ -543,7 +542,7 @@ pub fn launch_from_args() -> Option<Result<()>> {
         TOOLS
             .iter()
             .find(|t| Some(std::ffi::OsStr::new(t.id)) == id.as_deref())
-            .ok_or_else(|| "Outil inconnu.".to_string())
+            .ok_or_else(|| crate::language::text("Outil inconnu.").to_string())
             .and_then(launch),
     )
 }
@@ -556,13 +555,14 @@ pub struct Apps {
     handlers: std::collections::BTreeMap<(&'static str, &'static str), (String, Option<String>)>,
 }
 impl Apps {
+    pub fn language_changed(&mut self) { self.message.clear(); self.handlers.clear(); }
     pub fn poll(&mut self, ctx: &egui::Context) {
         let Some(rx) = &self.pending else {
             return;
         };
         let result = match rx.try_recv() {
             Ok(r) => r,
-            Err(TryRecvError::Disconnected) => Err("Opération interrompue.".into()),
+            Err(TryRecvError::Disconnected) => Err(crate::language::text("Opération interrompue.").into()),
             Err(TryRecvError::Empty) => {
                 ctx.request_repaint_after(Duration::from_millis(200));
                 return;
@@ -570,50 +570,50 @@ impl Apps {
         };
         self.pending = None;
         self.handlers.clear();
-        self.message = result.unwrap_or_else(|e| format!("Opération impossible. {e}"));
+        self.message = result.unwrap_or_else(|e| crate::local_format!("Opération impossible. {e}", "Operation failed. {e}"));
     }
     pub fn ui(&mut self, ui: &mut egui::Ui, simulation: bool) {
-        ui.heading("Applications par défaut de Windows");
-        ui.label("Windows ouvre directement les fichiers avec le programme choisi. Ferrite11 peut être fermé.");
-        ui.label("L’application utilisée pour le double-clic est indiquée pour chaque extension. Les gains de mémoire ou de temps d’ouverture dépendent de ton usage.");
-        if ui.button("Actualiser les associations").clicked() {
+        ui.heading(crate::language::text("Applications par défaut de Windows"));
+        ui.label(crate::language::text("Windows ouvre directement les fichiers avec le programme choisi. Ferrite11 peut être fermé."));
+        ui.label(crate::language::text("L’application utilisée pour le double-clic est indiquée pour chaque extension. Les gains de mémoire ou de temps d’ouverture dépendent de ton usage."));
+        if ui.button(crate::language::text("Actualiser les associations")).clicked() {
             self.handlers.clear();
         }
         if simulation {
             self.confirm = None;
-            ui.label("Mode simulation actif.");
+            ui.label(crate::language::text("Mode simulation actif."));
         }
         if self.pending.is_some() {
             ui.spinner();
         }
         ui.label(&self.message);
         egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.heading("Gestionnaire des tâches · FastTask");
-            ui.label("Ctrl + Maj + Échap ouvrira FastTask pour tous les utilisateurs de ce PC. Windows demandera une autorisation administrateur. Rétablis le gestionnaire Windows avant de désinstaller FastTask.");
+            ui.heading(crate::language::text("Gestionnaire des tâches · FastTask"));
+            ui.label(crate::language::text("Ctrl + Maj + Échap ouvrira FastTask pour tous les utilisateurs de ce PC. Windows demandera une autorisation administrateur. Rétablis le gestionnaire Windows avant de désinstaller FastTask."));
             ui.add_enabled_ui(!simulation && self.pending.is_none(), |ui| {
-                if ui.button("Remplacer par FastTask").clicked() {
+                if ui.button(crate::language::text("Remplacer par FastTask")).clicked() {
                     self.confirm = Some(("fasttask", false));
                 }
-                if ui.button("Rétablir le Gestionnaire des tâches Windows").clicked() {
+                if ui.button(crate::language::text("Rétablir le Gestionnaire des tâches Windows")).clicked() {
                     self.confirm = Some(("fasttask", true));
                 }
                 if let Some(("fasttask", restore)) = self.confirm {
-                    ui.label(if restore { "Rendre le raccourci au Gestionnaire des tâches Windows ?" } else { "Installer FastTask 1.1.0 si nécessaire et lui confier le raccourci système ?" });
-                    if ui.button("Valider").clicked() {
+                    ui.label(if restore { crate::language::text("Rendre le raccourci au Gestionnaire des tâches Windows ?") } else { crate::language::text("Installer FastTask 1.1.0 si nécessaire et lui confier le raccourci système ?") });
+                    if ui.button(crate::language::text("Valider")).clicked() {
                         self.confirm = None;
                         let (tx, rx) = mpsc::channel();
                         self.pending = Some(rx);
-                        self.message = "En attente de la réponse de Windows…".into();
+                        self.message = crate::language::text("En attente de la réponse de Windows…").into();
                         let ctx = ui.ctx().clone();
                         std::thread::spawn(move || {
                             let result = execute(powershell().arg(include_str!("fasttask.ps1"))
                                 .env("FERRITE_TASK_ACTION", if restore { "restore" } else { "replace" }))
-                                .map(|_| if restore { "Ctrl + Maj + Échap ouvre le Gestionnaire des tâches Windows.".into() } else { "FastTask est le gestionnaire actif. Essaie Ctrl + Maj + Échap.".into() });
+                                .map(|_| if restore { crate::language::text("Ctrl + Maj + Échap ouvre le Gestionnaire des tâches Windows.").into() } else { crate::language::text("FastTask est le gestionnaire actif. Essaie Ctrl + Maj + Échap.").into() });
                             let _ = tx.send(result);
                             ctx.request_repaint();
                         });
                     }
-                    if ui.button("Annuler").clicked() { self.confirm = None; }
+                    if ui.button(crate::language::text("Annuler")).clicked() { self.confirm = None; }
                 }
             });
         });
@@ -631,38 +631,38 @@ impl Apps {
                 continue;
             }
             egui::Frame::group(ui.style()).show(ui, |ui| {
-                ui.heading(tool.name);
-                if tool.id == "micro" { ui.label("Ancienne installation de Micro (Go). Tu peux rétablir ton choix dans Windows ou choisir Kwil pour le texte."); }
-                if !formats.is_empty() { ui.label(format!("Usage : {} · Alternative à {}",tool.task,tool.original)); }
-                if formats.is_empty() { ui.label("Ancienne installation par raccourci. Tu peux la retirer."); }
+                ui.heading(crate::language::text(tool.name));
+                if tool.id == "micro" { ui.label(crate::language::text("Ancienne installation de Micro (Go). Tu peux rétablir ton choix dans Windows ou choisir Kwil pour le texte.")); }
+                if !formats.is_empty() { ui.label(crate::local_format!("Usage : {} · Alternative à {}", "Use: {} · Alternative to {}",crate::language::text(tool.task),crate::language::text(tool.original))); }
+                if formats.is_empty() { ui.label(crate::language::text("Ancienne installation par raccourci. Tu peux la retirer.")); }
                 for &ext in formats {
                     let (name,previous) = self.handlers.entry((tool.id,ext)).or_insert_with(|| (crate::associations::handler(ext),crate::associations::previous(tool.id,ext)));
-                    ui.label(format!("{ext} · Application actuelle : {name}"));
-                    if let Some(old) = previous { ui.small(format!("Application précédente : {old}")); }
+                    ui.label(crate::local_format!("{ext} · Application actuelle : {name}", "{ext} · Current app: {name}"));
+                    if let Some(old) = previous { ui.small(crate::local_format!("Application précédente : {old}", "Previous app: {old}")); }
                 }
                 ui.add_enabled_ui(!simulation && self.pending.is_none(), |ui| {
-                    if !formats.is_empty() && ui.button(if active { "Choisir ou rétablir dans Windows" } else { "Installer et choisir les extensions" }).clicked() {
+                    if !formats.is_empty() && ui.button(if active { crate::language::text("Choisir ou rétablir dans Windows") } else { crate::language::text("Installer et choisir les extensions") }).clicked() {
                         self.confirm=Some((tool.id,false));
                     }
-                    if active && ui.button("Retirer cette installation").clicked() { self.confirm=Some((tool.id,true)); }
+                    if active && ui.button(crate::language::text("Retirer cette installation")).clicked() { self.confirm=Some((tool.id,true)); }
                     if let Some((id,remove)) = self.confirm && id == tool.id {
-                        ui.label(if remove { "Rétablis d’abord les extensions dans Windows avant de retirer la copie." } else { "Windows te demandera quels types de fichiers confier à cette application." });
-                        if ui.button("Valider").clicked() {
+                        ui.label(if remove { crate::language::text("Rétablis d’abord les extensions dans Windows avant de retirer la copie.") } else { crate::language::text("Windows te demandera quels types de fichiers confier à cette application.") });
+                        if ui.button(crate::language::text("Valider")).clicked() {
                             self.confirm=None;
                             let (tx,rx)=mpsc::channel();
                             self.pending=Some(rx);
-                            self.message=format!("{} · opération en cours…",tool.name);
+                            self.message=crate::local_format!("{} · opération en cours…", "{} · working…",crate::language::text(tool.name));
                             let ctx=ui.ctx().clone();
                             std::thread::spawn(move || { let _=tx.send(transact(tool,remove)); ctx.request_repaint(); });
                         }
-                        if ui.button("Annuler").clicked() { self.confirm=None; }
+                        if ui.button(crate::language::text("Annuler")).clicked() { self.confirm=None; }
                     }
                 });
             });
         }
-        ui.collapsing("Changer le gestionnaire de dossiers pour Win + E", |ui| {
-            ui.label("Files propose dans ses paramètres avancés une option expérimentale de gestionnaire par défaut. Sauvegarde les réglages comme indiqué par l’éditeur, active cette option, puis teste Win + E et l’ouverture d’un dossier. Désactive-la avant de retirer Files. Explorer continue de gérer le bureau et la barre des tâches.");
-            ui.hyperlink_to("Fonctionnement et limites chez l’éditeur de Files", "https://files.community/docs/customize-settings/advanced");
+        ui.collapsing(crate::language::text("Changer le gestionnaire de dossiers pour Win + E"), |ui| {
+            ui.label(crate::language::text("Files propose dans ses paramètres avancés une option expérimentale de gestionnaire par défaut. Sauvegarde les réglages comme indiqué par l’éditeur, active cette option, puis teste Win + E et l’ouverture d’un dossier. Désactive-la avant de retirer Files. Explorer continue de gérer le bureau et la barre des tâches."));
+            ui.hyperlink_to(crate::language::text("Fonctionnement et limites chez l’éditeur de Files"), "https://files.community/docs/customize-settings/advanced");
         });
     }
 }

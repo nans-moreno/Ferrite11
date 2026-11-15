@@ -31,8 +31,7 @@ fn query(ext: &str, field: ASSOCSTR) -> io::Result<Option<String>> {
         return Ok(None);
     } // ERROR_NO_ASSOCIATION or ERROR_FILE_NOT_FOUND
     if probe < 0 || size == 0 {
-        return Err(io::Error::other(format!(
-            "Association Windows illisible ({probe:#x})"
+        return Err(io::Error::other(crate::local_format!("Association Windows illisible ({probe:#x})", "Could not read the Windows association ({probe:#x})"
         )));
     }
     let mut buf = vec![0; size as usize];
@@ -47,8 +46,7 @@ fn query(ext: &str, field: ASSOCSTR) -> io::Result<Option<String>> {
         )
     };
     if hr != 0 {
-        return Err(io::Error::other(format!(
-            "Lecture de l’association ({hr:#x})"
+        return Err(io::Error::other(crate::local_format!("Lecture de l’association ({hr:#x})", "Could not read the file association ({hr:#x})"
         )));
     }
     Ok(Some(String::from_utf16_lossy(
@@ -61,7 +59,7 @@ pub fn handler(ext: &str) -> String {
         .ok()
         .flatten()
         .or_else(|| query(ext, ASSOCSTR_PROGID).ok().flatten())
-        .unwrap_or_else(|| "non identifié".into())
+        .unwrap_or_else(|| crate::language::text("non identifié").into())
 }
 
 fn prog(id: &str) -> String {
@@ -91,14 +89,14 @@ pub fn register(id: &str, name: &str, exe: &Path) -> io::Result<()> {
             .map(|pair| pair.0)
     };
     let class = format!(r"Software\Classes\{pg}");
-    key(&class)?.set_value("", &format!("Fichier ouvert avec {name}"))?;
+    key(&class)?.set_value("", &crate::local_format!("Fichier ouvert avec {name}", "File opened with {name}"))?;
     key(&format!(r"{class}\shell\open\command"))?
         .set_value("", &format!(r#""{}" "%1""#, exe.display()))?;
     let details = key(&cap)?;
     details.set_value("ApplicationName", &name)?;
     details.set_value(
         "ApplicationDescription",
-        &format!("Ouvrir directement les fichiers avec {name}"),
+        &crate::local_format!("Ouvrir directement les fichiers avec {name}", "Open files directly with {name}"),
     )?;
     let associations = key(&format!(r"{cap}\FileAssociations"))?;
     let before = key(&format!(r"{cap}\Previous"))?;
@@ -139,8 +137,7 @@ pub fn ensure_unused(id: &str, exe: &Path) -> io::Result<()> {
             .flatten()
             .is_some_and(|s| s.eq_ignore_ascii_case(&exe.to_string_lossy()));
         if direct || same_exe {
-            return Err(io::Error::other(format!(
-                "Choisis une autre application pour {ext} dans Windows avant de retirer cet outil."
+            return Err(io::Error::other(crate::local_format!("Choisis une autre application pour {ext} dans Windows avant de retirer cet outil.", "Choose another application for {ext} in Windows before removing this tool."
             )));
         }
     }
@@ -168,8 +165,7 @@ pub fn ensure_unused(id: &str, exe: &Path) -> io::Result<()> {
         if selected.eq_ignore_ascii_case(&prog(id))
             || selected.eq_ignore_ascii_case(&format!(r"Applications\{basename}"))
         {
-            return Err(io::Error::other(format!(
-                "Rétablis également une application pour {ext}."
+            return Err(io::Error::other(crate::local_format!("Rétablis également une application pour {ext}.", "Restore a default app for {ext} as well."
             )));
         }
     }

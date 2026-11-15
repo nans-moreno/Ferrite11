@@ -21,7 +21,7 @@ try {
     $setup = Join-Path $dist "Ferrite11-Setup-$version-x64.exe"
     Copy-Item -LiteralPath (Join-Path $metadata.target_directory 'release\ferrite11.exe') -Destination $app
     Copy-Item -LiteralPath 'LICENSE' -Destination (Join-Path $dist 'LICENSE.txt')
-    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 /reference:System.Windows.Forms.dll "/resource:$app,Ferrite11.exe" '/resource:LICENSE,LICENSE.txt' "/out:$setup" '.\installer\Setup.cs'
+    & $csc /nologo /target:winexe /platform:x64 /codepage:65001 /reference:System.Windows.Forms.dll /reference:System.Drawing.dll "/resource:$app,Ferrite11.exe" '/resource:LICENSE,LICENSE.txt' "/out:$setup" '.\installer\Setup.cs'
     if ($LASTEXITCODE -ne 0) { throw 'La compilation du programme installateur a echoue.' }
     Get-FileHash -Algorithm SHA256 -LiteralPath $app,$setup | ForEach-Object {
         '{0}  {1}' -f $_.Hash.ToLowerInvariant(),[IO.Path]::GetFileName($_.Path)

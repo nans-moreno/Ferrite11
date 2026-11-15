@@ -26,15 +26,15 @@ pub fn summary() -> Vec<String> {
         let output = String::from_utf16_lossy(&device.DeviceName[..end]);
         let name = output.rsplit('\\').next().unwrap_or(&output);
         let Some(current) = mode(&device.DeviceName, ENUM_CURRENT_SETTINGS) else {
-            rows.push(format!("{name} · Mode actuel indisponible.")); continue;
+            rows.push(crate::local_format!("{name} · Mode actuel indisponible.", "{name} · Current display mode unavailable.")); continue;
         };
         let maximum = (0..).map_while(|i| mode(&device.DeviceName, i))
             .filter_map(|m| matching_hz(&current, &m)).max();
-        let hz = |n: Option<u32>| n.filter(|v| *v > 1).map_or_else(|| "inconnue".to_owned(), |v| format!("{v} Hz"));
-        rows.push(format!("{name} · {} × {} · Fréquence actuelle {} · Maximale proposée à ce format {}",
+        let hz = |n: Option<u32>| n.filter(|v| *v > 1).map_or_else(|| crate::language::text("inconnue").to_owned(), |v| format!("{v} Hz"));
+        rows.push(crate::local_format!("{name} · {} × {} · Fréquence actuelle {} · Maximale proposée à ce format {}", "{name} · {} × {} · Current refresh rate {} · Highest available in this format {}",
             current.dmPelsWidth, current.dmPelsHeight, hz(Some(current.dmDisplayFrequency)), hz(maximum)));
     }
-    if rows.is_empty() { rows.push("Aucune sortie active lisible dans cette session Windows.".into()); }
+    if rows.is_empty() { rows.push(crate::language::text("Aucune sortie active lisible dans cette session Windows.").into()); }
     rows
 }
 

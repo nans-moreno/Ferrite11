@@ -36,13 +36,13 @@ pub fn snapshot() -> Result<Option<SavedPath>, String> {
 fn decode(raw: RegValue) -> Result<SavedPath, String> {
     let expandable = match raw.vtype {
         REG_EXPAND_SZ => true, REG_SZ => false,
-        _ => return Err("Type de PATH non pris en charge.".into()),
+        _ => return Err(crate::language::text("Type de PATH non pris en charge.").into()),
     };
-    if raw.bytes.len() % 2 != 0 { return Err("Encodage du PATH inconnu.".into()); }
+    if raw.bytes.len() % 2 != 0 { return Err(crate::language::text("Encodage du PATH inconnu.").into()); }
     let mut units: Vec<_> = raw.bytes.chunks_exact(2)
         .map(|p| u16::from_le_bytes([p[0], p[1]])).collect();
     if units.pop() != Some(0) || units.contains(&0) {
-        return Err("Format du PATH non pris en charge.".into());
+        return Err(crate::language::text("Format du PATH non pris en charge.").into());
     }
     let text = String::from_utf16(&units).map_err(|e| e.to_string())?;
     Ok(SavedPath { text, expandable })
@@ -60,7 +60,7 @@ impl SavedPath {
     pub fn check_restore(&self) -> Result<(), String> {
         let current = snapshot()?;
         if current.as_ref() == Some(self) || current == Some(self.cleaned()) { Ok(()) }
-        else { Err("Le PATH a changé depuis la sauvegarde. Les ajouts récents sont conservés.".into()) }
+        else { Err(crate::language::text("Le PATH a changé depuis la sauvegarde. Les ajouts récents sont conservés.").into()) }
     }
 
     pub fn update(&self, restore: bool) -> Result<(), String> {
@@ -71,7 +71,7 @@ impl SavedPath {
             .map_err(|e| e.to_string())?;
         let current = decode(key.get_raw_value("Path").map_err(|e| e.to_string())?)?;
         if &current == desired { return Ok(()); }
-        if &current != expected { return Err("Le PATH a changé. Relance l’analyse.".into()); }
+        if &current != expected { return Err(crate::language::text("Le PATH a changé. Relance l’analyse.").into()); }
         let bytes: Vec<_> = desired.text.encode_utf16().chain(Some(0)).flat_map(u16::to_le_bytes).collect();
         key.set_raw_value("Path", &RegValue {
             vtype: if desired.expandable { REG_EXPAND_SZ } else { REG_SZ }, bytes: bytes.into()
