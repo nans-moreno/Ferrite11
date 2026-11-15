@@ -587,6 +587,36 @@ impl Apps {
             ui.spinner();
         }
         ui.label(&self.message);
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            ui.heading("Gestionnaire des tâches · FastTask");
+            ui.label("Ctrl + Maj + Échap ouvrira FastTask pour tous les utilisateurs de ce PC. Windows demandera une autorisation administrateur. Rétablis le gestionnaire Windows avant de désinstaller FastTask.");
+            ui.add_enabled_ui(!simulation && self.pending.is_none(), |ui| {
+                if ui.button("Remplacer par FastTask").clicked() {
+                    self.confirm = Some(("fasttask", false));
+                }
+                if ui.button("Rétablir le Gestionnaire des tâches Windows").clicked() {
+                    self.confirm = Some(("fasttask", true));
+                }
+                if let Some(("fasttask", restore)) = self.confirm {
+                    ui.label(if restore { "Rendre le raccourci au Gestionnaire des tâches Windows ?" } else { "Installer FastTask 1.1.0 si nécessaire et lui confier le raccourci système ?" });
+                    if ui.button("Valider").clicked() {
+                        self.confirm = None;
+                        let (tx, rx) = mpsc::channel();
+                        self.pending = Some(rx);
+                        self.message = "En attente de la réponse de Windows…".into();
+                        let ctx = ui.ctx().clone();
+                        std::thread::spawn(move || {
+                            let result = execute(powershell().arg(include_str!("fasttask.ps1"))
+                                .env("FERRITE_TASK_ACTION", if restore { "restore" } else { "replace" }))
+                                .map(|_| if restore { "Ctrl + Maj + Échap ouvre le Gestionnaire des tâches Windows.".into() } else { "FastTask est le gestionnaire actif. Essaie Ctrl + Maj + Échap.".into() });
+                            let _ = tx.send(result);
+                            ctx.request_repaint();
+                        });
+                    }
+                    if ui.button("Annuler").clicked() { self.confirm = None; }
+                }
+            });
+        });
         let root = match local_root() {
             Ok(root) => root,
             Err(e) => {
@@ -630,10 +660,6 @@ impl Apps {
                 });
             });
         }
-        ui.collapsing("Remplacer le Gestionnaire des tâches pour Ctrl + Maj + Échap", |ui| {
-            ui.label("Dans Process Explorer de Microsoft Sysinternals, conserve l’exécutable dans un dossier stable, lance-le en administrateur et coche Options → Replace Task Manager. Ferme-le, puis teste Ctrl + Maj + Échap. Pour revenir au Gestionnaire des tâches, décoche cette option avant de déplacer ou retirer Process Explorer.");
-            ui.hyperlink_to("Process Explorer chez Microsoft", "https://learn.microsoft.com/fr-fr/sysinternals/downloads/process-explorer");
-        });
         ui.collapsing("Changer le gestionnaire de dossiers pour Win + E", |ui| {
             ui.label("Files propose dans ses paramètres avancés une option expérimentale de gestionnaire par défaut. Sauvegarde les réglages comme indiqué par l’éditeur, active cette option, puis teste Win + E et l’ouverture d’un dossier. Désactive-la avant de retirer Files. Explorer continue de gérer le bureau et la barre des tâches.");
             ui.hyperlink_to("Fonctionnement et limites chez l’éditeur de Files", "https://files.community/docs/customize-settings/advanced");

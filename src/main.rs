@@ -1078,8 +1078,6 @@ $w = Get-CimInstance Win32_OperatingSystem
                 Page::Outils => {
                     self.apps.ui(ui, self.simulation);
                     ui.collapsing("Autres outils à installer manuellement", |ui| {
-                        ui.label("GlazeWM organise les fenêtres avec ses propres raccourcis. Consulte sa configuration avant de l’activer.");
-                        if ui.button("Projet GlazeWM").clicked() { if let Err(e) = open_target("https://github.com/glzr-io/glazewm") { self.message = e; } }
                         ui.label("Autoruns permet d’examiner les démarrages avancés. Note l’état de chaque entrée pour pouvoir la réactiver.");
                         if ui.button("Autoruns de Microsoft").clicked() { if let Err(e) = open_target("https://learn.microsoft.com/fr-fr/sysinternals/downloads/autoruns") { self.message = e; } }
                     });
