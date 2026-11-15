@@ -5,7 +5,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Installation de Ferrite11 Universal")]
 [assembly: AssemblyProduct("Ferrite11 Universal")]
-[assembly: AssemblyVersion("0.6.1.0")]
+[assembly: AssemblyVersion("0.7.0.0")]
 
 internal static class Setup
 {
@@ -18,7 +18,7 @@ internal static class Setup
             string folder = quiet ? Path.GetFullPath(args[1]) : Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Programs", "Ferrite11");
-            if (!quiet && MessageBox.Show("Installer Ferrite11 Universal 0.6.1 dans " + folder + " ?",
+            if (!quiet && MessageBox.Show("Installer Ferrite11 Universal 0.7.0 dans " + folder + " ?",
                 "Ferrite11", MessageBoxButtons.OKCancel) != DialogResult.OK) return 1;
             Directory.CreateDirectory(folder);
             foreach (string name in new[] { "LICENSE.txt", "Ferrite11.exe" })

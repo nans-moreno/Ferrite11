@@ -7,6 +7,9 @@ pub fn extensions(id: &str) -> &'static [&'static str] {
         "kwil" | "micro" => &[".txt", ".log", ".md"],
         "pdfcraft" => &[".pdf"],
         "oculante" => &[".png", ".jpg", ".jpeg", ".bmp", ".webp"],
+        "archiverclick" => &[".zip", ".7z"],
+        "leanrows" => &[".csv", ".tsv", ".jsonl", ".ndjson"],
+        "kitab" => &[".epub", ".fb2", ".mobi", ".cbz"],
         _ => &[],
     }
 }
@@ -24,9 +27,9 @@ fn query(ext: &str, field: ASSOCSTR) -> io::Result<Option<String>> {
             &mut size,
         )
     };
-    if probe as u32 == 0x80070483 {
+    if matches!(probe as u32, 0x80070483 | 0x80070002) {
         return Ok(None);
-    } // ERROR_NO_ASSOCIATION
+    } // ERROR_NO_ASSOCIATION or ERROR_FILE_NOT_FOUND
     if probe < 0 || size == 0 {
         return Err(io::Error::other(format!(
             "Association Windows illisible ({probe:#x})"
