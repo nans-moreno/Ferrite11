@@ -138,33 +138,21 @@ fn download(tool: &Tool, stage: &Path) -> Result<()> {
             .env("FERRITE_FILES", tool.files.join(",")),
     )
 }
-fn create_shortcut(tool: &Tool) -> Result<()> {
-    // Existing shortcuts belonging to the user must keep their own destination.
+fn remove_old_shortcut(tool: &Tool) -> Result<()> {
     let script = r#"
 $ErrorActionPreference='Stop'
 $dir=Join-Path ([Environment]::GetFolderPath('Programs')) 'Ferrite11'
-[void][IO.Directory]::CreateDirectory($dir)
 $path=Join-Path $dir ($env:FERRITE_TASK + '.lnk')
-$shell=New-Object -ComObject WScript.Shell
-$link=$shell.CreateShortcut($path)
-$argsWanted='--outil ' + $env:FERRITE_ID
-if ([IO.File]::Exists($path) -and ($link.Description -ne 'Lanceur Ferrite11' -or $link.Arguments -ne $argsWanted)) {
-    throw 'Un autre raccourci utilise déjà ce nom.'
+if ([IO.File]::Exists($path)) {
+    $lnk=(New-Object -ComObject WScript.Shell).CreateShortcut($path)
+    if ($lnk.Description -eq 'Lanceur Ferrite11' -and $lnk.Arguments -eq ('--outil ' + $env:FERRITE_ID) -and [IO.Path]::GetFileName($lnk.TargetPath) -eq 'Ferrite11.exe') { [IO.File]::Delete($path) }
 }
-$link.TargetPath=$env:FERRITE_EXE
-$link.Arguments=$argsWanted
-$link.Description='Lanceur Ferrite11'
-$link.Save()
 "#;
     execute(
         powershell()
             .arg(script)
             .env("FERRITE_TASK", tool.task)
-            .env("FERRITE_ID", tool.id)
-            .env(
-                "FERRITE_EXE",
-                env::current_exe().map_err(|e| e.to_string())?,
-            ),
+            .env("FERRITE_ID", tool.id),
     )
 }
 fn managed(root: &Path, tool: &Tool) -> bool {
@@ -258,24 +246,39 @@ fn transact(tool: &Tool, remove: bool) -> Result<String> {
         .map_err(|e| e.to_string())?;
     lock.try_lock()
         .map_err(|_| "Une autre installation Ferrite11 est en cours.".to_string())?;
+    let exe = root.join(tool.id).join(tool.files[0]);
+    let native = !crate::associations::extensions(tool.id).is_empty();
     if remove {
+        if native {
+            crate::associations::ensure_unused(tool.id, &exe).map_err(|e| e.to_string())?;
+            crate::associations::unregister(tool.id).map_err(|e| e.to_string())?;
+        }
+        remove_old_shortcut(tool)?;
         rollback(&root, tool)?;
-        return Ok(format!(
-            "{} retiré. Le lanceur ouvre de nouveau {}.",
-            tool.name, tool.original
-        ));
+        return Ok(format!("Copie de {} retirée.", tool.name));
     }
-    install(&root, tool, download)?;
-    match create_shortcut(tool) {
-        Ok(()) => Ok(format!(
-            "{} est prêt. Menu Démarrer › Ferrite11 › {}.",
-            tool.name, tool.task
-        )),
-        Err(e) => Ok(format!(
-            "{} installé. Utilise « Ouvrir » dans Ferrite11. Création du raccourci impossible : {e}",
-            tool.name
-        )),
+    if !native {
+        return Err("Aucune association native disponible.".into());
     }
+    if !managed(&root, tool) {
+        install(&root, tool, download)?;
+    }
+    if !exe.is_file() {
+        return Err("Copie incomplète. Retire puis réinstalle l’outil.".into());
+    }
+    crate::associations::register(tool.id, tool.name, &exe).map_err(|e| e.to_string())?;
+    remove_old_shortcut(tool)?;
+    Command::new(windows().join("explorer.exe"))
+        .arg(format!(
+            "ms-settings:defaultapps?registeredAppUser=Ferrite11.{}",
+            tool.id
+        ))
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(format!(
+        "Sélectionne {} dans Windows pour les extensions voulues, puis actualise la liste.",
+        tool.name
+    ))
 }
 
 fn launch(tool: &Tool) -> Result<()> {
@@ -341,6 +344,7 @@ pub struct Apps {
     pending: Option<Receiver<Result<String>>>,
     confirm: Option<(&'static str, bool)>,
     message: String,
+    handlers: std::collections::BTreeMap<String, (String, Option<String>)>,
 }
 impl Apps {
     pub fn poll(&mut self, ctx: &egui::Context) {
@@ -356,21 +360,26 @@ impl Apps {
             }
         };
         self.pending = None;
+        self.handlers.clear();
         self.message = result.unwrap_or_else(|e| format!("Opération impossible. {e}"));
     }
     pub fn ui(&mut self, ui: &mut egui::Ui, simulation: bool) {
-        ui.heading("Applications de remplacement");
-        ui.label("Chaque installation crée un lanceur dans le menu Démarrer, sous Ferrite11. L’outil Windows d’origine reste accessible. Après le retour arrière, le même lanceur ouvre de nouveau l’outil Windows.");
+        ui.heading("Applications par défaut de Windows");
+        ui.label("Windows ouvre directement les fichiers avec le programme choisi. Ferrite11 peut être fermé.");
+        ui.label("L’application utilisée pour le double-clic est indiquée pour chaque extension. Les gains de mémoire ou de temps d’ouverture dépendent de ton usage.");
+        if ui.button("Actualiser les associations").clicked() {
+            self.handlers.clear();
+        }
         if simulation {
-            ui.colored_label(egui::Color32::LIGHT_BLUE, "Mode simulation actif. Décoche-le en bas pour installer ou annuler un remplacement.");
             self.confirm = None;
+            ui.label("Mode simulation actif.");
         }
         if self.pending.is_some() {
             ui.spinner();
         }
-        ui.strong(&self.message);
+        ui.label(&self.message);
         let root = match local_root() {
-            Ok(r) => r,
+            Ok(root) => root,
             Err(e) => {
                 ui.label(e);
                 return;
@@ -378,57 +387,46 @@ impl Apps {
         };
         for tool in TOOLS {
             let active = managed(&root, tool);
+            let formats = crate::associations::extensions(tool.id);
+            if formats.is_empty() && !active {
+                continue;
+            }
             egui::Frame::group(ui.style()).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.heading(tool.task);
-                ui.label(format!("{} → {}   ·   En service : {}",tool.original,tool.name,if active {tool.name} else {tool.original}));
-                ui.hyperlink_to(format!("Version {}",tool.release.rsplit('/').next().unwrap()), tool.url(false));
-                ui.horizontal_wrapped(|ui| {
-                    if ui.button("Ouvrir").clicked() {
-                        if let Err(e)=launch(tool) { self.message = format!("Ouverture impossible. {e}"); }
+                ui.heading(tool.name);
+                if !formats.is_empty() { ui.label(format!("Usage : {} · Alternative à {}",tool.task,tool.original)); }
+                if formats.is_empty() { ui.label("Ancienne installation par raccourci. Tu peux la retirer."); }
+                for &ext in formats {
+                    let (name,previous) = self.handlers.entry(ext.to_owned()).or_insert_with(|| (crate::associations::handler(ext),crate::associations::previous(tool.id,ext)));
+                    ui.label(format!("{ext} · Application actuelle : {name}"));
+                    if let Some(old) = previous { ui.small(format!("Application précédente : {old}")); }
+                }
+                ui.add_enabled_ui(!simulation && self.pending.is_none(), |ui| {
+                    if !formats.is_empty() && ui.button(if active { "Choisir ou rétablir dans Windows" } else { "Installer et choisir les extensions" }).clicked() {
+                        self.confirm=Some((tool.id,false));
                     }
-                    let action = if active {"Retour arrière"} else {"Installer et remplacer"};
-                    if ui.add_enabled(self.pending.is_none(), egui::Button::new(action)).clicked() {
-                        if simulation {
-                            self.message = format!("Simulation · {} : {}. Décoche « Mode simulation » pour effectuer cette action.",tool.name,action);
-                        } else { self.confirm=Some((tool.id,active)); }
-                    }
-                });
-                if self.confirm == Some((tool.id,active)) {
-                    if active { ui.label(format!("Retirer la copie de {} installée par Ferrite11 et revenir à {} ?",tool.name,tool.original)); }
-                    else { ui.label(format!("Télécharger {} depuis son projet officiel et l’utiliser pour « {} » ?",tool.name,tool.task)); }
-                    ui.horizontal(|ui| {
+                    if active && ui.button("Retirer cette installation").clicked() { self.confirm=Some((tool.id,true)); }
+                    if let Some((id,remove)) = self.confirm && id == tool.id {
+                        ui.label(if remove { "Rétablis d’abord les extensions dans Windows avant de retirer la copie." } else { "Windows te demandera quels types de fichiers confier à cette application." });
                         if ui.button("Valider").clicked() {
+                            self.confirm=None;
                             let (tx,rx)=mpsc::channel();
-                            self.pending=Some(rx); self.confirm=None;
+                            self.pending=Some(rx);
                             self.message=format!("{} · opération en cours…",tool.name);
                             let ctx=ui.ctx().clone();
-                            std::thread::spawn(move || { let _=tx.send(transact(tool,active)); ctx.request_repaint(); });
+                            std::thread::spawn(move || { let _=tx.send(transact(tool,remove)); ctx.request_repaint(); });
                         }
                         if ui.button("Annuler").clicked() { self.confirm=None; }
-                    });
-                }
+                    }
+                });
             });
         }
-        ui.heading("Ouvrir les fichiers par double-clic");
-        ui.label("Pour un type de fichier, note l’application actuelle dans les paramètres Windows. Utilise ensuite « Ouvrir avec » sur un fichier pour choisir le nouvel exécutable. Pour annuler, resélectionne l’application précédente avant de retirer la copie portable.");
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("Applications par défaut").clicked() {
-                if let Err(e) = Command::new(windows().join("explorer.exe"))
-                    .arg("ms-settings:defaultapps")
-                    .spawn()
-                {
-                    self.message = e.to_string();
-                }
-            }
-            if root.is_dir() && ui.button("Afficher les exécutables installés").clicked() {
-                if let Err(e) = Command::new(windows().join("explorer.exe"))
-                    .arg(&root)
-                    .spawn()
-                {
-                    self.message = e.to_string();
-                }
-            }
+        ui.collapsing("Remplacer le Gestionnaire des tâches pour Ctrl + Maj + Échap", |ui| {
+            ui.label("Dans Process Explorer de Microsoft Sysinternals, conserve l’exécutable dans un dossier stable, lance-le en administrateur et coche Options → Replace Task Manager. Ferme-le, puis teste Ctrl + Maj + Échap. Pour revenir au Gestionnaire des tâches, décoche cette option avant de déplacer ou retirer Process Explorer.");
+            ui.hyperlink_to("Process Explorer chez Microsoft", "https://learn.microsoft.com/fr-fr/sysinternals/downloads/process-explorer");
+        });
+        ui.collapsing("Changer le gestionnaire de dossiers pour Win + E", |ui| {
+            ui.label("Files propose dans ses paramètres avancés une option expérimentale de gestionnaire par défaut. Sauvegarde les réglages comme indiqué par l’éditeur, active cette option, puis teste Win + E et l’ouverture d’un dossier. Désactive-la avant de retirer Files. Explorer continue de gérer le bureau et la barre des tâches.");
+            ui.hyperlink_to("Fonctionnement et limites chez l’éditeur de Files", "https://files.community/docs/customize-settings/advanced");
         });
     }
 }
@@ -441,6 +439,7 @@ mod tests {
         // Run these filesystem tests on the build volume. A virtual Windows TEMP may
         // accept file writes yet reject atomic directory renames.
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        fs::create_dir_all(&dir).unwrap();
         new_stage(&dir, &TOOLS[0]).unwrap()
     }
 

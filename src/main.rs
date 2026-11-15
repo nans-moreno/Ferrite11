@@ -8,6 +8,8 @@ fn main() {
 #[cfg(windows)]
 mod apps;
 #[cfg(windows)]
+mod associations;
+#[cfg(windows)]
 mod display_modes;
 #[cfg(windows)]
 mod user_path;

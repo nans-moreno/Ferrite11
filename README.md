@@ -1,6 +1,6 @@
 # Ferrite11 Universal
 
-Ferrite11 est une application de bureau en français pour Windows 11 x64. Elle analyse les réglages du compte local, explique leur effet et propose des changements réversibles. La version 0.4.0 est publiée sous licence MIT.
+Ferrite11 est une application de bureau en français pour Windows 11 x64. Elle analyse les réglages du compte local, explique leur effet et propose des changements réversibles. La version 0.5.0 est publiée sous licence MIT.
 
 ## Utilisation
 
@@ -13,9 +13,7 @@ Les rubriques sur l’interface, les mises à jour, la confidentialité, les pil
 
 ## Applications de remplacement
 
-Ferrite11 peut télécharger des versions portables de Yazi, Micro, Oculante, bottom, ripgrep et fd. Les téléchargements nécessitent une connexion et leur empreinte SHA-256 est vérifiée. Les lanceurs de Ferrite11 ouvrent l’alternative choisie et permettent de revenir à l’outil précédent. Les associations globales de fichiers et les applications déjà installées restent gérées par Windows.
-
-Les sauvegardes locales se trouvent sous %LOCALAPPDATA%\Ferrite11 et les copies d’outils sous son sous-dossier outils. Utilise le bouton de retour arrière dans la rubrique des applications avant de supprimer Ferrite11 si tu souhaites rétablir ses lanceurs.
+Micro ouvre les fichiers texte (.txt, .log, .md) et Oculante les images (.png, .jpg, .jpeg, .bmp, .webp) via les associations natives de Windows. Choisis « Installer et choisir les extensions », valide chaque association dans les paramètres Windows, puis actualise la liste. Le double-clic lance directement le programme choisi, même lorsque Ferrite11 est fermé. Pour revenir en arrière, rétablis l’application précédente dans Windows avant de retirer la copie portable. Les anciens outils à raccourcis peuvent être retirés depuis cette page.
 
 ## Compiler sous Windows
 
@@ -27,7 +25,7 @@ Prévois un Windows x64 avec la chaîne stable Rust MSVC x64, les outils de comp
 .\build-windows.ps1
 ~~~
 
-Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.4.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
+Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.5.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
 
 Pour travailler uniquement sur le programme Rust, utilise cargo run ou cargo test --release --locked depuis la racine du dépôt. Le code de l’interface et des réglages se trouve dans src. Le fichier installer/Setup.cs contient le programme d’installation pour le compte utilisateur.
 
