@@ -1,10 +1,12 @@
-# Ferrite11 Universal
+# Ferrite11 — Optimisation et confidentialité pour Windows 11
 
-Ferrite11 est une application de bureau en français et en anglais pour Windows 11 x64. Elle analyse les réglages du compte local, explique leur effet et propose des changements réversibles. La version 0.10.0 est publiée sous licence MIT.
+Ferrite11 aide à alléger le démarrage de Windows 11 x64 et à choisir quelles données les applications peuvent utiliser. Ses 346 fiches de confidentialité décrivent l’effet de chaque option en français et en anglais. Tu peux examiner ta sélection en mode simulation, appliquer les changements dans Ferrite11 et restaurer les valeurs sauvegardées.
 
 L’installateur permet de sélectionner la langue et de saisir ou parcourir le dossier de destination. Dans l’application, **Français** et **English** changent la langue immédiatement. Le choix est mémorisé pour le compte Windows.
 
 Le bouton **Mettre à jour / Update** vérifie la dernière version stable publiée dans les Releases GitHub. Si elle est plus récente, Ferrite11 télécharge son installateur x64, vérifie son empreinte SHA-256, puis redémarre depuis le même emplacement. Les préférences, le journal et les sauvegardes sont conservés.
+
+La page **Contrôles de confidentialité** regroupe les réglages par thème. Chaque fiche décrit en français et en anglais ce qui change pour l’utilisateur. Ferrite11 consulte les valeurs Windows et sauvegarde leur état initial avant d’appliquer une sélection. Le mode simulation affiche le récapitulatif. Pour revenir en arrière, coche une fiche marquée comme sauvegardée et valide, ou utilise la restauration générale. Les contrôles guidés indiquent la page Windows appropriée. Pour les stratégies du PC, ouvre Ferrite11 en tant qu’administrateur si Windows refuse l’écriture. La configuration enregistrée peut être supplantée par une stratégie d’entreprise ou ignorée par un composant absent ou obsolète.
 
 ## Utilisation
 
@@ -33,7 +35,7 @@ Prévois un Windows x64 avec la chaîne stable Rust MSVC x64, les outils de comp
 .\build-windows.ps1
 ~~~
 
-Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.10.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
+Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.12.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
 
 Pour travailler uniquement sur le programme Rust, utilise cargo run ou cargo test --release --locked depuis la racine du dépôt. Le code de l’interface et des réglages se trouve dans src. Le fichier installer/Setup.cs contient le programme d’installation pour le compte utilisateur.
 

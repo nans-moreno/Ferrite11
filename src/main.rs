@@ -71,12 +71,12 @@ $w = Get-CimInstance Win32_OperatingSystem
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Page { Accueil, Windows, Jeux, Demarrage, Systeme, Materiel, Outils, Journal, Privacy, Updates, Avance, Nvidia, Latence }
+    enum Page { Accueil, Windows, Jeux, Demarrage, Systeme, Materiel, Outils, Journal, Privacy, Updates, Avance, Nvidia, Latence, Controls }
     impl Page {
-        const ALL: [Page; 13] = [Page::Accueil, Page::Windows, Page::Updates, Page::Privacy, Page::Jeux, Page::Nvidia, Page::Latence, Page::Demarrage, Page::Systeme, Page::Materiel, Page::Avance, Page::Outils, Page::Journal];
+        const ALL: [Page; 14] = [Page::Accueil, Page::Windows, Page::Updates, Page::Privacy, Page::Controls, Page::Jeux, Page::Nvidia, Page::Latence, Page::Demarrage, Page::Systeme, Page::Materiel, Page::Avance, Page::Outils, Page::Journal];
         fn label(self) -> &'static str {
             match self {
-                Self::Accueil => crate::language::text("Tableau de bord"), Self::Windows => crate::language::text("Interface Windows"),
+                Self::Controls => privacy_controls::title(), Self::Accueil => crate::language::text("Tableau de bord"), Self::Windows => crate::language::text("Interface Windows"),
                 Self::Jeux => "Gaming & GPU", Self::Demarrage => crate::language::text("Applications & démarrage"), Self::Systeme => crate::language::text("Système & stockage"),
                 Self::Materiel => "CPU, RAM & BIOS", Self::Outils => crate::language::text("Applications de remplacement"),
                 Self::Journal => crate::language::text("Journal & sauvegardes"),
@@ -204,6 +204,8 @@ $w = Get-CimInstance Win32_OperatingSystem
     enum Snapshot { Registry(Vec<RegBackup>), PowerPlan(String), UserPath(crate::user_path::SavedPath), Startup(crate::startup::Saved) }
     #[derive(Default, Serialize, Deserialize)]
     struct Store {
+        #[serde(default)]
+        privacy: BTreeMap<String,privacy_controls::Backup>,
         backups: BTreeMap<String, Snapshot>,
         manual_done: BTreeSet<String>,
         log: Vec<String>,
@@ -506,6 +508,13 @@ $w = Get-CimInstance Win32_OperatingSystem
         }
 
         #[test]
+        fn each_visible_setting_belongs_to_one_topic() {
+            for id in tweaks().into_iter().map(|t| t.id).chain(GUIDES.iter().map(|g| g.id)).chain(options().map(|g| g.id)) {
+                assert_eq!(topics::TOPICS.iter().filter(|t| t.ids.contains(&id)).count(), 1, "{id}");
+            }
+        }
+
+        #[test]
         fn settings_have_unique_ids_and_do_not_share_registry_values() {
             let mut ids = BTreeSet::new();
             let mut values = BTreeSet::new();
@@ -781,7 +790,10 @@ $w = Get-CimInstance Win32_OperatingSystem
             button: "Ouvrir l’Explorateur", target: "shell:MyComputerFolder",
         },
     ];
+    mod topics { include!("topics.rs"); }
+    mod privacy_controls { include!("privacy_controls.rs"); }
     pub struct FerriteApp {
+        privacy_panel: privacy_controls::Panel,
         display_modes: Option<Vec<String>>,
         search: String,
         apps: crate::apps::Apps,
@@ -809,7 +821,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             };
             let (tx, rx) = mpsc::channel();
             std::thread::spawn(move || { let _ = tx.send(get_machine()); });
-            Self { display_modes: None, search: String::new(), apps: crate::apps::Apps::default(), updates: crate::updates::Updates::default(), startup_preview: crate::startup::snapshot(),
+            Self { privacy_panel: Default::default(), display_modes: None, search: String::new(), apps: crate::apps::Apps::default(), updates: crate::updates::Updates::default(), startup_preview: crate::startup::snapshot(),
                 page: Page::Accueil, selected: BTreeSet::new(), simulation: false,
                 confirmation: false, confirm_restore_all: false, store, storage_error: error,
                 message: crate::language::text("Choisis les réglages à appliquer, puis valide la sélection.").into(),
@@ -828,6 +840,7 @@ $w = Get-CimInstance Win32_OperatingSystem
         fn apply_one(&mut self, t: &Tweak) -> Result<bool, String> {
             if let Some(e) = &self.storage_error { return Err(crate::local_format!("Sauvegarde indisponible : {e}", "Backup unavailable: {e}")); }
             if !self.supported { return Err(crate::language::text("Cette application exige Windows 11 pour modifier des réglages.").into()); }
+            if privacy_controls::owns_native(t.id, &self.store) {return Err(crate::local_format!("Restaure d’abord ce réglage dans les contrôles de confidentialité.","Restore this setting in Privacy controls first."));}
             if self.store.backups.contains_key(t.id) { return Err(crate::language::text("Déjà appliqué par Ferrite11 ; restaurer d'abord.").into()); }
             if tweak_satisfied(t)? { return Ok(false); }
             let backup = if matches!(t.operation, Operation::OrphanStartup) {
@@ -920,6 +933,8 @@ $w = Get-CimInstance Win32_OperatingSystem
                     }
                 }
             }
+            let (restored, issues) = privacy_controls::restore_all(&mut self.store);
+            ok += restored; errors.extend(issues); self.privacy_panel.refresh();
             self.confirm_restore_all = false;
             self.push_log(crate::local_format!("Restaurations : {ok} ; erreurs : {}. {}", "Restored: {ok}. Errors: {}. {}", errors.len(), errors.join(" | ")));
         }
@@ -1066,7 +1081,9 @@ $w = Get-CimInstance Win32_OperatingSystem
                 for g in options().filter(|g| found(&[crate::language::text(g.title), crate::language::text(g.note), crate::language::text(g.steps)])) {
                     self.option_card(ui, g); count += 1;
                 }
-                if count == 0 { ui.label(crate::language::text("Aucun réglage trouvé pour cette recherche.")); }
+                let matches = self.privacy_panel.match_count(&query);
+                if matches > 0 && ui.button(format!("{} ({matches})",privacy_controls::title())).clicked() { self.privacy_panel.search(&query); self.page = Page::Controls; }
+                if count + matches == 0 { ui.label(crate::language::text("Aucun réglage trouvé pour cette recherche.")); }
                 return;
             }
             ui.heading(crate::language::text("Réglages automatiques"));
@@ -1101,7 +1118,7 @@ $w = Get-CimInstance Win32_OperatingSystem
             }
             ui.add_space(8.0);
             let total_done = self.store.manual_done.len();
-            let changes = self.store.backups.len();
+            let changes = self.store.backups.len() + self.store.privacy.len();
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(crate::local_format!("{changes} réglage(s) géré(s) par Ferrite11", "{changes} setting(s) managed by Ferrite11")).strong());
                 ui.separator();
@@ -1117,6 +1134,7 @@ $w = Get-CimInstance Win32_OperatingSystem
         fn content(&mut self, ui: &mut egui::Ui) {
             match self.page {
                 Page::Accueil => self.home(ui),
+                Page::Controls => self.privacy_panel.content(ui, &self.store,self.supported && self.storage_error.is_none()),
                 Page::Journal => {
                     ui.heading(crate::language::text("Journal et sauvegardes"));
                     ui.label(crate::local_format!("Fichier : {}", "File: {}", storage_path().display()));
@@ -1176,17 +1194,24 @@ $w = Get-CimInstance Win32_OperatingSystem
                     }) { ui.label(crate::language::text("Aucun GPU NVIDIA détecté sur ce PC. Ces réglages concernent les machines équipées d’un pilote NVIDIA.")); }
                     if page == Page::Materiel { self.hardware_summary(ui); ui.add_space(9.0); }
                     let actions = tweaks();
-                    if actions.iter().any(|t| t.page == page) {
-                        ui.heading(crate::language::text("Réglages à valider"));
-                        for t in actions.iter().filter(|t| t.page == page) { self.action_card(ui, t); }
+                    let guides: Vec<_> = GUIDES.iter().filter(|g| g.page == page && self.guide_relevant(g)).collect();
+                    let extra: Vec<_> = options().filter(|g| g.page == page).collect();
+                    for topic in topics::TOPICS {
+                        let actions: Vec<_> = actions.iter().filter(|t| t.page == page && topic.ids.contains(&t.id)).collect();
+                        let manual: Vec<_> = guides.iter().copied().filter(|g| topic.ids.contains(&g.id)).collect();
+                        let options: Vec<_> = extra.iter().copied().filter(|g| topic.ids.contains(&g.id)).collect();
+                        let count = actions.len() + manual.len() + options.len();
+                        if count == 0 { continue; }
+                        let label = if crate::language::english() { topic.en } else { topic.fr };
+                        egui::CollapsingHeader::new(format!("{label} ({count})"))
+                            .id_salt((page as u8, topic.en)).show(ui, |ui| {
+                                if !actions.is_empty() { ui.strong(crate::language::text("Réglages à valider")); }
+                                for t in actions { self.action_card(ui, t); }
+                                if !manual.is_empty() || !options.is_empty() { ui.strong(crate::language::text("Étapes manuelles")); }
+                                for g in manual { self.guide_card(ui, g); }
+                                for g in options { self.option_card(ui, g); }
+                            });
                     }
-                    let guides: Vec<&Guide> = GUIDES.iter().filter(|g| g.page == page && self.guide_relevant(g)).collect();
-                    if !guides.is_empty() {
-                        ui.heading(crate::language::text("Étapes manuelles"));
-                        ui.label(crate::language::text("Ouvre le guide, réalise l’étape puis coche-la pour enregistrer ton avancement."));
-                    }
-                    for g in guides { self.guide_card(ui, g); }
-                    for g in options().filter(|g| g.page == page) { self.option_card(ui, g); }
                 }
             }
         }
@@ -1209,6 +1234,13 @@ $w = Get-CimInstance Win32_OperatingSystem
             });
         }
         fn bottom_actions(&mut self, ui: &mut egui::Ui) {
+            if self.page == Page::Controls {
+                if self.privacy_panel.actions(ui, &mut self.simulation, &mut self.store, self.supported && self.storage_error.is_none()) {
+                    self.push_log(self.privacy_panel.message.clone());
+                    self.statuses = scan_statuses();
+                }
+                return;
+            }
             ui.separator();
             ui.horizontal_wrapped(|ui| {
                 ui.strong(crate::local_format!("Sélection : {}", "Selected: {}", self.selected.len()));
@@ -1223,7 +1255,7 @@ $w = Get-CimInstance Win32_OperatingSystem
                     self.confirmation = true;
                     self.message = if self.simulation { crate::language::text("Simulation terminée. Aucun réglage Windows modifié.") } else { crate::language::text("Vérifie la sélection puis confirme son application.") }.into();
                 }
-                if ui.add_enabled(self.storage_error.is_none() && !self.store.backups.is_empty(), egui::Button::new(crate::language::text("Restaurer les réglages Windows"))).clicked() {
+                if ui.add_enabled(self.storage_error.is_none() && (!self.store.backups.is_empty() || !self.store.privacy.is_empty()), egui::Button::new(crate::language::text("Restaurer les réglages Windows"))).clicked() {
                     self.confirmation = false;
                     self.confirm_restore_all = true;
                 }

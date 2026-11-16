@@ -549,6 +549,7 @@ pub fn launch_from_args() -> Option<Result<()>> {
 
 #[derive(Default)]
 pub struct Apps {
+    section: usize,
     pending: Option<Receiver<Result<String>>>,
     confirm: Option<(&'static str, bool)>,
     message: String,
@@ -588,6 +589,13 @@ impl Apps {
             ui.spinner();
         }
         ui.label(&self.message);
+        ui.horizontal_wrapped(|ui| {
+            for (idx, fr, en) in [(0, "Système et dossiers", "System and folders"), (1, "Documents et texte", "Documents and text"), (2, "Images et archives", "Images and archives"), (3, "Anciennes installations", "Legacy installations")] {
+                let label = if crate::language::english() { en } else { fr };
+                if ui.selectable_value(&mut self.section, idx, label).changed() { self.confirm = None; }
+            }
+        });
+        if self.section == 0 {
         egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.heading(crate::language::text("Gestionnaire des tâches · FastTask"));
             ui.label(crate::language::text("Ctrl + Maj + Échap ouvrira FastTask pour tous les utilisateurs de ce PC. Windows demandera une autorisation administrateur. Rétablis le gestionnaire Windows avant de désinstaller FastTask."));
@@ -618,6 +626,7 @@ impl Apps {
                 }
             });
         });
+        }
         let root = match local_root() {
             Ok(root) => root,
             Err(e) => {
@@ -625,12 +634,20 @@ impl Apps {
                 return;
             }
         };
+        let mut shown = 0;
         for tool in TOOLS {
             let active = managed(&root, tool);
             let formats = crate::associations::extensions(tool.id);
             if (formats.is_empty() || tool.id == "micro") && !active {
                 continue;
             }
+            let section = match tool.id {
+                "kwil" | "pdfcraft" | "leanrows" | "kitab" => 1,
+                "oculante" | "archiverclick" => 2,
+                _ => 3,
+            };
+            if self.section != section { continue; }
+            shown += 1;
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.heading(crate::language::text(tool.name));
                 if tool.id == "micro" { ui.label(crate::language::text("Ancienne installation de Micro (Go). Tu peux rétablir ton choix dans Windows ou choisir Kwil pour le texte.")); }
@@ -661,10 +678,11 @@ impl Apps {
                 });
             });
         }
-        ui.collapsing(crate::language::text("Changer le gestionnaire de dossiers pour Win + E"), |ui| {
+        if self.section == 3 && shown == 0 { ui.label(if crate::language::english() { "No legacy installations found." } else { "Aucune ancienne installation détectée." }); }
+        if self.section == 0 { ui.collapsing(crate::language::text("Changer le gestionnaire de dossiers pour Win + E"), |ui| {
             ui.label(crate::language::text("Files propose dans ses paramètres avancés une option expérimentale de gestionnaire par défaut. Sauvegarde les réglages comme indiqué par l’éditeur, active cette option, puis teste Win + E et l’ouverture d’un dossier. Désactive-la avant de retirer Files. Explorer continue de gérer le bureau et la barre des tâches."));
             ui.hyperlink_to(crate::language::text("Fonctionnement et limites chez l’éditeur de Files"), "https://files.community/docs/customize-settings/advanced");
-        });
+        }); }
     }
 }
 
