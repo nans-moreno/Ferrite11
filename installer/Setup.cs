@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Ferrite11 Setup")]
 [assembly: AssemblyProduct("Ferrite11 Universal")]
-[assembly: AssemblyVersion("0.12.0.0")]
+[assembly: AssemblyVersion("0.12.1.0")]
 
 internal static class Setup
 {
@@ -53,7 +53,7 @@ internal static class Setup
             Button cancel = new Button { Left = 434, Top = 123, Width = 100, Height = 27, DialogResult = DialogResult.Cancel };
             languages.SelectedIndexChanged += delegate {
                 bool en = languages.SelectedIndex == 1;
-                form.Text = en ? "Install Ferrite11 0.12.0" : "Installer Ferrite11 0.12.0";
+                form.Text = en ? "Install Ferrite11 0.12.1" : "Installer Ferrite11 0.12.1";
                 location.Text = en ? "Installation folder" : "Dossier d’installation";
                 browse.Text = en ? "Browse…" : "Parcourir…";
                 install.Text = en ? "Install" : "Installer";

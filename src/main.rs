@@ -451,6 +451,7 @@ $w = Get-CimInstance Win32_OperatingSystem
                     }]);
                 }
             }
+            labels = draw(Vec::new()); // The modal measures its contents on the opening frame.
             assert!(labels.contains_key("PRÉVISUALISATION"));
             assert!(labels.contains_key("Activer le Mode Jeu de Windows"));
             assert!(labels.contains_key("Fermer la simulation"));
@@ -458,6 +459,50 @@ $w = Get-CimInstance Win32_OperatingSystem
             assert!(app.simulation && app.confirmation && app.store.backups.is_empty() && app.store.log.is_empty());
             app.run_apply();
             assert!(app.store.backups.is_empty() && app.store.log.is_empty());
+        }
+
+        #[test]
+        fn long_review_keeps_both_actions_clickable_without_scrolling() {
+            for size in [egui::vec2(850., 640.), egui::vec2(680., 430.)] {
+                let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
+                for label in ["Confirmer et appliquer", "Annuler"] {
+                    let ctx = egui::Context::default();
+                    let draw = |events| {
+                        let mut action = ReviewAction::None;
+                        let frame = ctx.run_ui(egui::RawInput {
+                            screen_rect: Some(screen), events, ..Default::default()
+                        }, |ui| {
+                            egui::Panel::bottom("actions").show(ui, |ui| {
+                                ui.label("Valider");
+                                action = review_dialog(ui, "long-review", "Sélection", "Annuler", Some("Confirmer et appliquer"), |ui| {
+                                    for i in 0..300 { ui.label(format!("Option {i}")); }
+                                    true
+                                });
+                            });
+                        });
+                        let visible = frame.shapes.into_iter().filter_map(|s| {
+                            let egui::Shape::Text(t) = s.shape else { return None };
+                            let rect = egui::Rect::from_min_size(t.pos, t.galley.size());
+                            (screen.contains_rect(rect) && s.clip_rect.contains_rect(rect))
+                                .then(|| (t.galley.text().to_owned(), rect.center()))
+                        }).collect::<BTreeMap<_, _>>();
+                        (visible, action)
+                    };
+                    draw(vec![]);
+                    draw(vec![]);
+                    let (visible, _) = draw(vec![]);
+                    assert!(visible.contains_key("Option 0") && !visible.contains_key("Option 299"));
+                    let pos = visible[label];
+                    let (hovered, _) = draw(vec![egui::Event::PointerMoved(pos)]);
+                    let pos = hovered[label];
+                    let click = |pressed| vec![egui::Event::PointerMoved(pos), egui::Event::PointerButton {
+                        pos, pressed, button: egui::PointerButton::Primary, modifiers: Default::default(),
+                    }];
+                    draw(click(true));
+                    let (_, action) = draw(click(false));
+                    assert!(matches!((label, &action), ("Annuler", ReviewAction::Close) | ("Confirmer et appliquer", ReviewAction::Confirm)), "{size:?}, {label}, {pos:?}: {action:?}");
+                }
+            }
         }
 
         #[test]
@@ -792,6 +837,45 @@ $w = Get-CimInstance Win32_OperatingSystem
     ];
     mod topics { include!("topics.rs"); }
     mod privacy_controls { include!("privacy_controls.rs"); }
+    #[derive(Debug)]
+    enum ReviewAction { None, Close, Confirm }
+
+    fn review_dialog(
+        parent: &egui::Ui, id: &'static str, title: &str, cancel: &str, confirm: Option<&str>,
+        details: impl FnOnce(&mut egui::Ui) -> bool,
+    ) -> ReviewAction {
+        let viewport = parent.ctx().content_rect().size();
+        let dialog = egui::Modal::new(egui::Id::unique(id))
+            .frame(egui::Frame::popup(parent.style()).inner_margin(16.0))
+            .show(parent.ctx(), |ui| {
+                if !parent.is_enabled() { ui.disable(); }
+                ui.set_width((viewport.x - 48.0).clamp(1.0, 760.0));
+                ui.heading(title);
+                ui.separator();
+                let can_confirm = egui::ScrollArea::vertical()
+                    .id_salt("review-details").max_height((viewport.y * 0.67).max(1.0))
+                    .min_scrolled_height(0.0).auto_shrink([false, true]).show(ui, details).inner;
+                ui.separator();
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().interact_size.y = 32.0;
+                    let confirmed = confirm.is_some_and(|label| {
+                        ui.add_enabled(can_confirm, egui::Button::new(RichText::new(label).strong())).clicked()
+                    });
+                    let cancelled = ui.button(cancel).clicked();
+                    if confirmed { ReviewAction::Confirm } else if cancelled { ReviewAction::Close } else { ReviewAction::None }
+                }).inner
+            });
+        if dialog.should_close() { ReviewAction::Close } else { dialog.inner }
+    }
+
+    fn footer_message(ui: &mut egui::Ui, message: &str) {
+        if !message.is_empty() {
+            egui::ScrollArea::vertical().id_salt("footer-message").max_height(52.0)
+                .min_scrolled_height(0.0).show(ui, |ui| {
+                    ui.label(RichText::new(message).small().color(Color32::LIGHT_BLUE));
+                });
+        }
+    }
     pub struct FerriteApp {
         privacy_panel: privacy_controls::Panel,
         display_modes: Option<Vec<String>>,
@@ -1261,8 +1345,11 @@ $w = Get-CimInstance Win32_OperatingSystem
                 }
             });
             if self.confirmation {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(RichText::new(if self.simulation { crate::language::text("PRÉVISUALISATION") } else { crate::language::text("CONFIRMATION AVANT MODIFICATION") }).strong());
+                let title = if self.simulation { "PRÉVISUALISATION" } else { "CONFIRMATION AVANT MODIFICATION" };
+                let cancel = if self.simulation { "Fermer la simulation" } else { "Annuler" };
+                let confirm = (!self.simulation).then(|| crate::language::text("Confirmer et appliquer"));
+                let action = review_dialog(ui, "settings-review", crate::language::text(title),
+                    crate::language::text(cancel), confirm, |ui| {
                     let available: Vec<_> = tweaks().into_iter().filter(|t| self.selected.contains(t.id)).collect();
                     if available.is_empty() { ui.label(crate::language::text("Aucun réglage automatique sélectionné.")); }
                     for t in &available {
@@ -1288,22 +1375,27 @@ $w = Get-CimInstance Win32_OperatingSystem
                             Operation::BalancedPower => { ui.label(RichText::new("  powercfg /setactive SCHEME_BALANCED").small().color(Color32::GRAY)); }
                         }
                     }
-                    ui.horizontal(|ui| {
-                        if ui.button(if self.simulation { crate::language::text("Fermer la simulation") } else { crate::language::text("Annuler") }).clicked() { self.confirmation = false; }
-                        if !self.simulation && !available.is_empty() && ui.button(crate::language::text("Confirmer et appliquer")).clicked() { self.run_apply(); }
-                    });
+                    !self.selected.is_empty()
                 });
+                match action {
+                    ReviewAction::Confirm => self.run_apply(),
+                    ReviewAction::Close => self.confirmation = false,
+                    ReviewAction::None => {}
+                }
             }
             if self.confirm_restore_all {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(crate::language::text("Restaurer les valeurs d'origine enregistrées par Ferrite11 ? Les modifications effectuées ailleurs depuis seront respectées."));
-                    ui.horizontal(|ui| {
-                        if ui.button(crate::language::text("Annuler")).clicked() { self.confirm_restore_all = false; }
-                        if ui.button(crate::language::text("Confirmer la restauration")).clicked() { self.restore_all(); }
+                let action = review_dialog(ui, "restore-review", crate::language::text("Restaurer les réglages Windows"),
+                    crate::language::text("Annuler"), Some(crate::language::text("Confirmer la restauration")), |ui| {
+                        ui.label(crate::language::text("Restaurer les valeurs d'origine enregistrées par Ferrite11 ? Les modifications effectuées ailleurs depuis seront respectées."));
+                        true
                     });
-                });
+                match action {
+                    ReviewAction::Confirm => self.restore_all(),
+                    ReviewAction::Close => self.confirm_restore_all = false,
+                    ReviewAction::None => {}
+                }
             }
-            ui.label(RichText::new(&self.message).small().color(Color32::LIGHT_BLUE));
+            footer_message(ui, &self.message);
         }
     }
     impl eframe::App for FerriteApp {
@@ -1326,10 +1418,9 @@ $w = Get-CimInstance Win32_OperatingSystem
                 }
             });
             if self.updates.busy() { ui.disable(); }
-            let actions_height = ui.available_height() * 0.45;
             egui::Panel::bottom("actions").resizable(false).show(ui, |ui| {
-                egui::ScrollArea::vertical().id_salt("action-scroll")
-                    .max_height(actions_height).show(ui, |ui| self.bottom_actions(ui));
+                ui.spacing_mut().interact_size.y = 32.0;
+                self.bottom_actions(ui);
             });
             egui::Panel::left("navigation").exact_size(204.0).show(ui, |ui| {
                 egui::ScrollArea::vertical().id_salt("navigation-scroll").show(ui, |ui| {

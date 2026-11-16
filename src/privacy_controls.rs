@@ -592,29 +592,31 @@ impl Panel {
             }
         });
         if self.review {
-            ui.strong(if *simulation {
+            let title = if *simulation {
                 tr("Simulation", "Preview")
             } else {
                 tr("Changements à confirmer", "Changes to confirm")
+            };
+            let cancel = crate::language::text(if *simulation {
+                "Fermer la simulation"
+            } else {
+                "Annuler"
             });
-            for (id, choice) in &self.choices {
-                if let Some(f) = CATALOG.iter().find(|f| &f.id == id) {
-                    let verb = match choice {
-                        Choice::Restore => tr("Restaurer", "Restore"),
-                        Choice::Set(true, _) => tr("Appliquer", "Apply"),
-                        Choice::Set(false, _) => tr("Retirer la règle", "Turn rule off"),
-                    };
-                    ui.label(format!("{verb} · {id} · {}", f.title()));
+            let confirm = (!*simulation).then(|| crate::language::text("Confirmer et appliquer"));
+            let action = super::review_dialog(ui, "privacy-review", title, cancel, confirm, |ui| {
+                for (id, choice) in &self.choices {
+                    if let Some(f) = CATALOG.iter().find(|f| &f.id == id) {
+                        let verb = match choice {
+                            Choice::Restore => tr("Restaurer", "Restore"),
+                            Choice::Set(true, _) => tr("Appliquer", "Apply"),
+                            Choice::Set(false, _) => tr("Retirer la règle", "Turn rule off"),
+                        };
+                        ui.label(format!("{verb} · {id} · {}", f.title()));
+                    }
                 }
-            }
-            if !*simulation
-                && ui
-                    .add_enabled(
-                        enabled,
-                        egui::Button::new(crate::language::text("Confirmer et appliquer")),
-                    )
-                    .clicked()
-            {
+                enabled && !self.choices.is_empty()
+            });
+            if matches!(action, super::ReviewAction::Confirm) {
                 let mut errors = Vec::new();
                 let mut count = 0;
                 for (id, choice) in &self.choices {
@@ -635,20 +637,11 @@ impl Panel {
                 );
                 changed = true;
             }
-            if ui
-                .button(if *simulation {
-                    crate::language::text("Fermer la simulation")
-                } else {
-                    crate::language::text("Annuler")
-                })
-                .clicked()
-            {
+            if matches!(action, super::ReviewAction::Close) {
                 self.review = false;
             }
         }
-        if !self.message.is_empty() {
-            ui.label(&self.message);
-        }
+        super::footer_message(ui, &self.message);
         changed
     }
 }
@@ -773,6 +766,7 @@ mod tests {
                 ]);
             }
         }
+        labels = draw(vec![]);
         assert!(panel.review && simulation && store.privacy.is_empty());
         assert!(
             labels

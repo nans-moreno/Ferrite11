@@ -22,3 +22,48 @@ jobs:
           name: Ferrite11-Windows-x64
           path: dist/
           if-no-files-found: error
+
+  publish:
+    needs: windows
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: stable-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Ferrite11-Windows-x64
+          path: dist
+      - name: Publier la version stable pour les mises à jour
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          installers=(Ferrite11-Setup-*-x64.exe)
+          [[ ${#installers[@]} == 1 ]]
+          setup=${installers[0]}
+          [[ $setup =~ ^Ferrite11-Setup-([0-9]+\.[0-9]+\.[0-9]+)-x64\.exe$ ]]
+          version=${BASH_REMATCH[1]}
+          tag=v$version
+          tr -d '\r' < SHA256.txt | sha256sum --check -
+          releases=$(gh release list --limit 100 --json tagName,isDraft,isLatest)
+          latest=$(jq -r '.[] | select(.isLatest) | .tagName' <<< "$releases")
+          if [[ -n $latest && $(printf '%s\n' "${latest#v}" "$version" | sort -V | tail -1) != "$version" ]]; then exit 0; fi
+          draft=$(jq -r --arg tag "$tag" '.[] | select(.tagName == $tag) | .isDraft' <<< "$releases")
+          if [[ $draft == false ]]; then exit 0; fi
+          if [[ $draft == true ]]; then
+            [[ $(gh release view "$tag" --json targetCommitish --jq .targetCommitish) == "$GITHUB_SHA" ]]
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Ferrite11 $version" --generate-notes
+          fi
+          gh release upload "$tag" "$setup" --clobber
+          digest=$(gh release view "$tag" --json assets --jq ".assets[] | select(.name == \"$setup\") | .digest")
+          [[ "$digest" == "sha256:$(sha256sum "$setup" | cut -d' ' -f1)" ]]
+          gh release edit "$tag" --draft=false --latest

@@ -35,10 +35,12 @@ Prévois un Windows x64 avec la chaîne stable Rust MSVC x64, les outils de comp
 .\build-windows.ps1
 ~~~
 
-Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.12.0-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
+Le script utilise les versions verrouillées dans Cargo.lock, exécute les tests, construit en mode release et compile le programme d’installation C#. Dans dist, tu trouveras Ferrite11.exe, Ferrite11-Setup-0.12.1-x64.exe, la licence et les empreintes SHA-256. Les exécutables construits par cette procédure sont non signés.
 
 Pour travailler uniquement sur le programme Rust, utilise cargo run ou cargo test --release --locked depuis la racine du dépôt. Le code de l’interface et des réglages se trouve dans src. Le fichier installer/Setup.cs contient le programme d’installation pour le compte utilisateur.
 
 ## Compilation GitHub Actions
 
 Le workflow « Compiler Ferrite11 pour Windows x64 » s’exécute pour les changements sur main, les demandes d’intégration et les lancements manuels. Il exécute le même script sur un agent Windows. L’archive Ferrite11-Windows-x64 est disponible dans les artefacts du workflow terminé.
+
+Pour distribuer une nouvelle version, augmente le numéro de version du projet et de l’installateur sur main. Après les tests, GitHub publie l’installateur x64 dans une version stable et vérifie son empreinte avant de la rendre visible au bouton **Mettre à jour**.

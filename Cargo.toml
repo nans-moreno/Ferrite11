@@ -1,6 +1,6 @@
 [package]
 name = "ferrite11"
-version = "0.12.0"
+version = "0.12.1"
 edition = "2024"
 authors = ["Ferrite11 contributors"]
 description = "Optimiseur graphique universel, prudent et réversible pour Windows 11"
